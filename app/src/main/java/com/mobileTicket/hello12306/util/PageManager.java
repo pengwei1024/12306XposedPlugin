@@ -8,13 +8,14 @@ import android.util.Log;
 
 
 import com.mobileTicket.hello12306.model.Page;
+import com.mobileTicket.hello12306.widget.XWebView;
 
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 public class PageManager {
     private static final String TAG = "PageManager";
-    private static PageManager singleton;
+    private volatile static PageManager singleton;
     private List<Page> pages = new CopyOnWriteArrayList<>();
 
     public static PageManager getInstance() {
@@ -53,11 +54,23 @@ public class PageManager {
     @AnyThread
     public void runJs(final String js) {
         final Page page = getTopPage();
-        if (page != null && page.getWebView() != null) {
+        if (page == null) {
+            Log.w(TAG, "page is Null");
+            return;
+        }
+        final XWebView webView = page.getWebView();
+        if (webView != null) {
             Runnable runnable = new Runnable() {
                 @Override
                 public void run() {
-                    page.getWebView().evaluateJavascript(js, null);
+                    try {
+                        webView.evaluateJavascriptWithException(js, null);
+                    } catch (Exception e) {
+                        if (e.getMessage().contains("WebView had destroyed")) {
+                            page.popWebView();
+                        }
+                        Log.e(TAG, "runJs Error:" + js, e);
+                    }
                 }
             };
             if (Looper.getMainLooper() != Looper.myLooper()) {
@@ -65,9 +78,9 @@ public class PageManager {
             } else {
                 runnable.run();
             }
-            Log.d("queryJs", js);
+            Log.i(TAG, "webView:" + webView.hashCode() + ", queryJs: " + js);
         } else {
-            Log.w(TAG, "page== null? or getWebView? " + (page != null));
+            Log.w(TAG, "getWebView is Null");
         }
     }
 

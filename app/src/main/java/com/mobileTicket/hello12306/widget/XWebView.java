@@ -86,6 +86,13 @@ public class XWebView implements APWebView {
         }
     }
 
+    public void evaluateJavascriptWithException(String js, ValueCallback<String> valueCallback) throws Exception {
+        Method method = aPWebViewCls.getDeclaredMethod("loadUrl", String.class);
+        if (method != null) {
+            method.invoke(aPWebView, "javascript:" + js);
+        }
+    }
+
     @Override
     public void flingScroll(int i, int i2) {
 
