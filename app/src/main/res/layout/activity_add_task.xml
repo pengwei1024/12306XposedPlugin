@@ -53,6 +53,12 @@
         android:hint="请输入车次，分号分隔"
         android:minLines="2" />
 
+    <Button
+        android:id="@+id/train_list_btn"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="选择车次"/>
+
     <EditText
         android:id="@+id/select_user_text"
         android:layout_width="match_parent"

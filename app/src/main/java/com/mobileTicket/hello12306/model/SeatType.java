@@ -1,5 +1,7 @@
 package com.mobileTicket.hello12306.model;
 
+import android.support.annotation.Nullable;
+
 public enum SeatType {
     YZ("硬座", "1".charAt(0)),
     RZ("软座", "2".charAt(0)),
@@ -25,5 +27,16 @@ public enum SeatType {
 
     public char getSign() {
         return sign;
+    }
+
+    public static SeatType parse(@Nullable String type) {
+        if (type != null && type.length() > 0) {
+            for (SeatType seatType : SeatType.values()) {
+                if (seatType.sign == type.charAt(0)) {
+                    return seatType;
+                }
+            }
+        }
+        return SeatType.YW;
     }
 }

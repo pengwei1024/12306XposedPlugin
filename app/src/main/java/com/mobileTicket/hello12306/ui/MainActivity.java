@@ -77,6 +77,7 @@ public class MainActivity extends AppCompatActivity implements MessageClient.Que
             case R.id.clean:
                 adapter.update();
                 sendSelectedChange();
+                messageClient.sendToTarget(EventCode.CODE_SHOW_PROMPT, "", null);
                 break;
             case R.id.close_music:
                 messageClient.sendToTarget(Message.obtain(null, EventCode.CODE_CLOSE_MUSIC), null);

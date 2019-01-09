@@ -15,6 +15,7 @@ import android.os.Message;
 import android.os.Vibrator;
 import android.support.annotation.AnyThread;
 import android.support.annotation.NonNull;
+import android.support.annotation.Nullable;
 import android.text.TextUtils;
 import android.util.Log;
 import android.util.Pair;
@@ -76,7 +77,8 @@ public class Hook12306Impl implements IXposedHookLoadPackage {
     private AtomicBoolean isProcessing = new AtomicBoolean(false);
     private AtomicInteger hourAlarm = new AtomicInteger(0);
     private AtomicInteger fetchCount = new AtomicInteger(0);
-    private MessageClient.Response passengerResponse;
+    private volatile MessageClient.Response passengerResponse;
+    private volatile MessageClient.Response trainListResponse;
 
     @Override
     public void handleLoadPackage(final XC_LoadPackage.LoadPackageParam loadPackageParam) throws Throwable {
@@ -85,12 +87,13 @@ public class Hook12306Impl implements IXposedHookLoadPackage {
             return;
         }
         final Handler mainHandler = new Handler(Looper.getMainLooper());
-        // MainActivity生命周期
+        // 首页 MainActivity生命周期
         final Class<?> MainActivity = loadPackageParam.classLoader.loadClass("com.MobileTicket.ui.activity.MainActivity");
         XposedHelpers.findAndHookMethod(MainActivity, "onCreate", Bundle.class, new XC_MethodHook() {
             @Override
             protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
                 super.beforeHookedMethod(param);
+                PageManager.getInstance().push(new Page((Activity) param.thisObject));
                 Activity main = (Activity) param.thisObject;
                 messageClient = new MessageClient(main, new MessageClient.QueryListener() {
                     @Override
@@ -122,7 +125,18 @@ public class Hook12306Impl implements IXposedHookLoadPackage {
                                 passengerResponse = response;
                                 queryPassenger();
                                 break;
-                            case EventCode.CODE_TICKET_CONFIG:
+                            case EventCode.CODE_SELECT_TRAIN_LIST:
+                                trainListResponse = response;
+                                Bundle bundle = msg.getData();
+                                if (bundle != null) {
+                                    try {
+                                        queryLeftTicketZ(bundle.getString("trainDate"),
+                                                bundle.getString("from"), bundle.getString("to"),
+                                                "queryTicket4Task");
+                                    } catch (JSONException e) {
+                                        e.printStackTrace();
+                                    }
+                                }
                                 break;
                             default:
                                 break;
@@ -145,6 +159,7 @@ public class Hook12306Impl implements IXposedHookLoadPackage {
             @Override
             protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
                 super.beforeHookedMethod(param);
+                PageManager.getInstance().pop(new Page((Activity) param.thisObject));
                 if (messageClient != null) {
                     messageClient.getActivity().getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
                     messageClient.onDestroy();
@@ -173,6 +188,7 @@ public class Hook12306Impl implements IXposedHookLoadPackage {
             @Override
             public void run() {
                 if (OrderConfig.INSTANCE.trains.isEmpty()) {
+                    sendUIMessage(EventCode.CODE_TICKET_CONFIG, OrderConfig.INSTANCE.toString());
                     return;
                 }
                 int hour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY);
@@ -186,7 +202,9 @@ public class Hook12306Impl implements IXposedHookLoadPackage {
                     if (isStarted) {
                         int length = OrderConfig.INSTANCE.trainDate.size();
                         int select = fetchCount.get() % length == 0 ? length - 1 : 0;
-                        queryLeftTicketZ(OrderConfig.INSTANCE.trainDate.get(select));
+                        queryLeftTicketZ(OrderConfig.INSTANCE.trainDate.get(select),
+                                OrderConfig.INSTANCE.stationInfo.first,
+                                OrderConfig.INSTANCE.stationInfo.second, null);
                     }
                 } catch (Exception e) {
                     e.printStackTrace();
@@ -259,7 +277,7 @@ public class Hook12306Impl implements IXposedHookLoadPackage {
             @Override
             protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
                 super.beforeHookedMethod(param);
-                if (OrderConfig.INSTANCE == null) {
+                if (OrderConfig.INSTANCE.passenger.length == 0) {
                     return;
                 }
                 Page page = PageManager.getInstance().getTopPage();
@@ -364,6 +382,12 @@ public class Hook12306Impl implements IXposedHookLoadPackage {
                         if ("1".equals(success)) {
                             isProcessing.set(true);
                             getWaitTime();
+                        } else if ("0".equals(success)) {
+                            String error_msg = reqParams.optString("error_msg", "");
+                            if (error_msg.contains("目前您还有未处理的订单")) {
+                                playMusic();
+                                isProcessing.set(true);
+                            }
                         }
                         printLog("submitTrainResult: " + reqParams.toString());
                         showPrompt(reqParams.toString());
@@ -421,6 +445,16 @@ public class Hook12306Impl implements IXposedHookLoadPackage {
                     case "rpcWithBaseDTO":
                         printLog(reqParams.toString());
                         break;
+                    case "queryTicket4Task":
+                        if (trainListResponse != null) {
+                            Message message = new Message();
+                            Bundle bundle = new Bundle();
+                            bundle.putString("data", reqParams.toString());
+                            message.setData(bundle);
+                            trainListResponse.call(message);
+                            trainListResponse = null;
+                        }
+                        break;
                     default:
                         break;
                 }
@@ -450,7 +484,7 @@ public class Hook12306Impl implements IXposedHookLoadPackage {
                                         Log.d("itemTicketInfo", item.toString());
                                         Trains trains = Trains.loads(item);
                                         Log.d("AllTicketInfo", trains.toString());
-                                        if (OrderConfig.INSTANCE != null && trains.isMatch(OrderConfig.INSTANCE)) {
+                                        if (trains.isMatch(OrderConfig.INSTANCE)) {
                                             Log.d("SelectedTicketInfo", trains.toString());
                                             if (!isProcessing.get()) {
                                                 trainsQueue.offer(trains);
@@ -656,9 +690,15 @@ public class Hook12306Impl implements IXposedHookLoadPackage {
      * 检查余票信息
      *
      * @param trainDate 开车日期
+     * @param from      起始车站
+     * @param to        结束车站
      * @throws JSONException Exception
      */
-    private void queryLeftTicketZ(String trainDate) throws JSONException {
+    private void queryLeftTicketZ(@Nullable String trainDate, @Nullable String from,
+                                  @Nullable String to, @Nullable String callbackName) throws JSONException {
+        if (trainDate == null || from == null || to == null) {
+            return;
+        }
         if (OrderConfig.INSTANCE.trainDate.isEmpty()) {
             return;
         }
@@ -671,8 +711,8 @@ public class Hook12306Impl implements IXposedHookLoadPackage {
         JSONArray requestData = new JSONArray();
         JSONObject jsonArrayItem = new JSONObject();
         jsonArrayItem.put("train_date", trainDate);
-        jsonArrayItem.put("from_station", OrderConfig.INSTANCE.stationInfo.first);
-        jsonArrayItem.put("to_station", OrderConfig.INSTANCE.stationInfo.second);
+        jsonArrayItem.put("from_station", from);
+        jsonArrayItem.put("to_station", to);
         jsonArrayItem.put("station_train_code", "");
         jsonArrayItem.put("train_headers", "QB#");
         jsonArrayItem.put("train_flag", "");
@@ -701,8 +741,13 @@ public class Hook12306Impl implements IXposedHookLoadPackage {
         requestData.put(jsonArrayItem);
         jsonObject.put("requestData", requestData);
         String ret = jsonObject.toString().replaceAll("\\\\/", "/");
-        PageManager.getInstance().runJs("AlipayJSBridge.call('rpcWithBaseDTO',"
-                + ret + ")");
+        if (TextUtils.isEmpty(callbackName)) {
+            PageManager.getInstance().runJs("AlipayJSBridge.call('rpcWithBaseDTO',"
+                    + ret + ")");
+        } else {
+            PageManager.getInstance().runJs("AlipayJSBridge.call('rpcWithBaseDTO',"
+                    + ret + ", function(res){AlipayJSBridge.call('" + callbackName + "',res)}))");
+        }
     }
 
     /**
@@ -806,9 +851,6 @@ public class Hook12306Impl implements IXposedHookLoadPackage {
         executorService.submit(new Runnable() {
             @Override
             public void run() {
-                if (OrderConfig.INSTANCE == null) {
-                    return;
-                }
                 StringBuilder stringBuilder = new StringBuilder();
                 Calendar calendar = Calendar.getInstance();
                 stringBuilder.append(calendar.get(Calendar.MINUTE)).append(":")
@@ -825,7 +867,6 @@ public class Hook12306Impl implements IXposedHookLoadPackage {
                     }
                 }
                 stringBuilder.append(startTrainDate).append("\n");
-                stringBuilder.append(OrderConfig.INSTANCE.toString()).append("\n");
                 if (messageClient != null) {
                     Message message = Message.obtain(null, EventCode.CODE_SHOW_REQUEST);
                     Bundle bundle = new Bundle();
@@ -843,11 +884,15 @@ public class Hook12306Impl implements IXposedHookLoadPackage {
      * @param msg
      */
     private void showPrompt(final String msg) {
+        sendUIMessage(EventCode.CODE_SHOW_PROMPT, msg);
+    }
+
+    private void sendUIMessage(final int eventCode, final String msg) {
         executorService.submit(new Runnable() {
             @Override
             public void run() {
                 if (messageClient != null) {
-                    Message message = Message.obtain(null, EventCode.CODE_SHOW_PROMPT);
+                    Message message = Message.obtain(null, eventCode);
                     Bundle bundle = new Bundle();
                     bundle.putString("data", msg);
                     message.setData(bundle);
@@ -873,15 +918,17 @@ public class Hook12306Impl implements IXposedHookLoadPackage {
                                         bundle.getString("to")))
                                 .setTrains(bundle.getStringArrayList("trainList"))
                                 .setPassenger(Passenger.parse(users).toArray(new Passenger[0]))
-                                .setSeatType(SeatType.YW)
+                                .setSeatType(SeatType.parse(bundle.getString("type")))
                                 .setLoginUser(bundle.getString("uid"))
                                 .setLoginPassword(bundle.getString("pwd"));
-
+                        sendUIMessage(EventCode.CODE_TICKET_CONFIG, OrderConfig.INSTANCE.toString());
                     }
                 } else if (message.arg1 == -1) {
-                    showPrompt("不存在配置文件");
+                    sendUIMessage(EventCode.CODE_TICKET_CONFIG, "不存在配置文件");
                 } else if (message.arg1 == -2) {
-                    showPrompt("配置文件被删除");
+                    sendUIMessage(EventCode.CODE_TICKET_CONFIG, "配置文件被删除");
+                } else {
+                    sendUIMessage(EventCode.CODE_TICKET_CONFIG, "未知异常");
                 }
             }
         });

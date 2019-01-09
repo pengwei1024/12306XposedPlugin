@@ -44,7 +44,8 @@ public class ShareService extends Service implements MessageClient.QueryListener
     private View content;
     private TextView requestText;
     private TextView tipText;
-    private boolean isStarted = true;
+    private TextView configInfo;
+    private boolean isStarted = false;
     private MMKV ticketKV = MMKV.mmkvWithID(EventCode.KEY_TICKET_CACHE, MMKV.MULTI_PROCESS_MODE);
 
     @Override
@@ -99,6 +100,12 @@ public class ShareService extends Service implements MessageClient.QueryListener
                     tipText.setText(String.valueOf(data));
                 }
                 break;
+            case EventCode.CODE_TICKET_CONFIG:
+                if (tipText != null && msg.getData() != null) {
+                    String data = msg.getData().getString("data");
+                    configInfo.setText(String.valueOf(data));
+                }
+                break;
             case EventCode.CODE_QUERY_TASK:
                 int selectedId = ticketKV.getInt(EventCode.KEY_TASK_SELECTED_ID, -1);
                 if (selectedId < 0) {
@@ -123,6 +130,7 @@ public class ShareService extends Service implements MessageClient.QueryListener
                                     bundle.putString("passenger", taskDao.getPassengerJson());
                                     bundle.putString("uid", taskDao.getUid());
                                     bundle.putString("pwd", taskDao.getPwd());
+                                    bundle.putString("type", taskDao.getType());
                                     message.setData(bundle);
                                     response.call(message);
                                 }
@@ -161,6 +169,7 @@ public class ShareService extends Service implements MessageClient.QueryListener
         // 获取浮动窗口视图所在布局.
         content = inflater.inflate(R.layout.service_prompt, null);
         requestText = content.findViewById(R.id.requestText);
+        configInfo = content.findViewById(R.id.config_info);
         tipText = content.findViewById(R.id.tipText);
         CheckBox startCheckbox = content.findViewById(R.id.startCheckbox);
         startCheckbox.setChecked(isStarted);

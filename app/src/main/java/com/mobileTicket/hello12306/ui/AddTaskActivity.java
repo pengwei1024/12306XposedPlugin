@@ -28,6 +28,7 @@ import com.mobileTicket.hello12306.dao.TaskDao;
 import com.mobileTicket.hello12306.model.EventCode;
 import com.mobileTicket.hello12306.model.Passenger;
 import com.mobileTicket.hello12306.model.SeatType;
+import com.mobileTicket.hello12306.model.Trains;
 import com.mobileTicket.hello12306.util.MessageClient;
 import com.mobileTicket.hello12306.util.Utils;
 
@@ -46,9 +47,11 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Calendar;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 import java.util.Timer;
 import java.util.TimerTask;
 import java.util.concurrent.ExecutorService;
@@ -153,7 +156,7 @@ public class AddTaskActivity extends AppCompatActivity implements MessageClient.
                             boolean[] booleans = new boolean[passengerList.size()];
                             Arrays.fill(booleans, false);
                             new AlertDialog.Builder(AddTaskActivity.this)
-                                    .setTitle("多选列表")
+                                    .setTitle("请选择用户")
                                     .setMultiChoiceItems(passengerList.toArray(new String[0]),
                                             booleans, new DialogInterface.OnMultiChoiceClickListener() {
                                                 @Override
@@ -187,6 +190,104 @@ public class AddTaskActivity extends AppCompatActivity implements MessageClient.
                 });
             }
         });
+        // 选择车次
+        findViewById(R.id.train_list_btn).setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                if (!checkNotNull(startStation, "起始站不能为空")
+                        || !checkNotNull(endStation, "终点站不能为空")
+                        || !checkNotNull(selectTimeText, "发车时间不能为空")
+                        ) {
+                    return;
+                }
+                String startStationCode = stationCache.optString(startStation.getText().toString());
+                String endStationCode = stationCache.optString(endStation.getText().toString());
+                if (TextUtils.isEmpty(startStationCode) || TextUtils.isEmpty(endStationCode)) {
+                    Toast.makeText(AddTaskActivity.this, "站点信息异常", Toast.LENGTH_SHORT).show();
+                    return;
+                }
+                String[] trainDateArray = selectTimeText.getText().toString().split("[；|;]");
+                Pattern pattern = Pattern.compile("^\\d{8}$");
+                for (String date : trainDateArray) {
+                    Matcher matcher = pattern.matcher(date);
+                    if (!matcher.find()) {
+                        Toast.makeText(AddTaskActivity.this, "日期异常", Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+                }
+                showProgress("正在请求车次信息...");
+                final Timer timer = new Timer();
+                timer.schedule(new TimerTask() {
+                    @Override
+                    public void run() {
+                        runOnUiThread(new Runnable() {
+                            @Override
+                            public void run() {
+                                hideProgress();
+                                Toast.makeText(AddTaskActivity.this, "请先启动12306客户端", Toast.LENGTH_SHORT).show();
+                            }
+                        });
+                    }
+                }, 5000);
+                Message message = Message.obtain(null, EventCode.CODE_SELECT_TRAIN_LIST);
+                Bundle bundle = new Bundle();
+                bundle.putString("trainDate", trainDateArray[0]);
+                bundle.putString("from", startStationCode);
+                bundle.putString("to", endStationCode);
+                message.setData(bundle);
+                messageClient.sendToTarget(message,
+                        new MessageClient.Callback() {
+                    @Override
+                    public void onResponse(Message message) {
+                        timer.cancel();
+                        hideProgress();
+                        String data = message.getData().getString("data");
+                        try {
+                            final List<String> trainList = new ArrayList<>();
+                            List<String> trainShowList = new ArrayList<>();
+                            JSONObject jsonObject = new JSONObject(data);
+                            JSONArray array = jsonObject.optJSONArray("ticketResult");
+                            for (int i=0;i<array.length();i++) {
+                                JSONObject item = array.optJSONObject(i);
+                                Trains trains = Trains.loads(item);
+                                trainList.add(trains.code);
+                                trainShowList.add(trains.code + " (" + trains.startTime + ")");
+                            }
+                            boolean[] booleans = new boolean[trainShowList.size()];
+                            Arrays.fill(booleans, false);
+                            final Set<Integer> selectedSet = new HashSet<>();
+                            new AlertDialog.Builder(AddTaskActivity.this)
+                                    .setTitle("请选择车次")
+                                    .setMultiChoiceItems(trainShowList.toArray(new String[0]),
+                                            booleans, new DialogInterface.OnMultiChoiceClickListener() {
+                                                @Override
+                                                public void onClick(DialogInterface dialog, int which, boolean isChecked) {
+                                                    if (isChecked) {
+                                                        selectedSet.add(which);
+                                                    } else {
+                                                        selectedSet.remove(which);
+                                                    }
+                                                }
+                                            })
+                                    .setPositiveButton("确定", new DialogInterface.OnClickListener() {
+                                        @Override
+                                        public void onClick(DialogInterface dialog, int which) {
+                                            List<String> selectedList = new ArrayList<>();
+                                            for (int i : selectedSet) {
+                                                selectedList.add(trainList.get(i));
+                                            }
+                                            trainListText.setText(Utils.listToString(selectedList));
+                                        }
+                                    })
+                                    .show();
+                        } catch (Exception e) {
+                            e.printStackTrace();
+                        }
+                    }
+                });
+            }
+        });
+        // 提交
         findViewById(R.id.btn_submit).setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {

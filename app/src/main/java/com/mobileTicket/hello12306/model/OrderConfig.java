@@ -121,9 +121,11 @@ public class OrderConfig {
         return dataList;
     }
 
+    @NonNull
     @Override
     public String toString() {
         return INSTANCE.stationInfo.first + "->" + INSTANCE.stationInfo.second + "; "
-                + passenger_names() + "; " + INSTANCE.seatType.getName();
+                + passenger_names() + "; " + INSTANCE.seatType.getName() + "; "
+                + Utils.listToString(INSTANCE.trainDate);
     }
 }
