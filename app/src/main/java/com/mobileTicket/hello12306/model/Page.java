@@ -67,8 +67,10 @@ public class Page {
 
     public XWebView popWebView() {
         XWebView pop = webViewHistory.pop();
-        exitWebViewList.add(pop.hashCode());
-        Log.d(TAG, "popWebView " + pop.hashCode());
+        if (pop != null) {
+            exitWebViewList.add(pop.hashCode());
+            Log.d(TAG, "popWebView " + pop.hashCode());
+        }
         return pop;
     }
 

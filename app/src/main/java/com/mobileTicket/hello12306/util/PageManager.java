@@ -10,6 +10,7 @@ import android.util.Log;
 import com.mobileTicket.hello12306.model.Page;
 import com.mobileTicket.hello12306.widget.XWebView;
 
+import java.lang.reflect.InvocationTargetException;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 
@@ -35,8 +36,8 @@ public class PageManager {
     }
 
     public void pop(Page page) {
-        pages.remove(page);
-        Log.d(TAG, "pop Page:" + page);
+        boolean result = pages.remove(page);
+        Log.d(TAG, "pop Page:" + page + ", result:" + result);
     }
 
     @Nullable
@@ -66,10 +67,15 @@ public class PageManager {
                     try {
                         webView.evaluateJavascriptWithException(js, null);
                     } catch (Exception e) {
-                        if (e.getMessage().contains("WebView had destroyed")) {
-                            page.popWebView();
+                        if (e instanceof InvocationTargetException) {
+                            Throwable target = ((InvocationTargetException) e).getTargetException();
+                            if (target != null && target.getMessage() != null
+                                    && target.getMessage().contains("WebView had destroyed")) {
+                                Log.i(TAG, "pop webView: " + webView.hashCode());
+                                page.popWebView();
+                            }
                         }
-                        Log.e(TAG, "runJs Error:" + js, e);
+                        Log.e(TAG, "evaluateJavascriptWithException", e);
                     }
                 }
             };
