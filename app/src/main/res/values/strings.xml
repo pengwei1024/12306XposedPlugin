@@ -1,0 +1,7 @@
+<resources>
+    <string name="app_name">hello12306</string>
+    <string name="menu_reload">新增</string>
+    <string name="menu_clean">刷新</string>
+    <string name="menu_close_music">关闭音乐</string>
+    <string name="start_ticket">是否开始抢票?</string>
+</resources>

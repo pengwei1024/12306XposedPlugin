@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#99ffaaff"
+    android:keepScreenOn="true"
+    android:orientation="vertical"
+    android:padding="2dp">
+
+    <CheckBox
+        android:id="@+id/startCheckbox"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="@string/start_ticket"
+        android:drawablePadding="3dp"
+        android:textColor="#666666"
+        android:textStyle="bold"/>
+
+    <TextView
+        android:id="@+id/requestText"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textColor="#666"
+        android:textSize="12sp"/>
+
+    <TextView
+        android:id="@+id/tipText"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="3dp"
+        android:textColor="#ff0000"
+        android:textSize="12sp"/>
+</LinearLayout>

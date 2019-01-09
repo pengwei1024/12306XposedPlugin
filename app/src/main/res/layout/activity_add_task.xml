@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal">
+
+        <android.support.v7.widget.AppCompatAutoCompleteTextView
+            android:id="@+id/start_station"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:completionThreshold="1"
+            android:hint="出发" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:text=" > "
+            android:textColor="#000000" />
+
+        <android.support.v7.widget.AppCompatAutoCompleteTextView
+            android:id="@+id/end_station"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:completionThreshold="1"
+            android:hint="到达" />
+    </LinearLayout>
+
+    <EditText
+        android:id="@+id/select_time_text"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="选择日期" />
+
+    <Button
+        android:id="@+id/select_time"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="选择时间" />
+
+    <EditText
+        android:id="@+id/train_list"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="请输入车次，分号分隔"
+        android:minLines="2" />
+
+    <EditText
+        android:id="@+id/select_user_text"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="用户信息" />
+
+    <Button
+        android:id="@+id/select_user_btn"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="选择用户" />
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="请先启动12306客户端再点击选择用户"
+        android:textColor="#666666"
+        android:textSize="12sp" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal">
+
+        <EditText
+            android:id="@+id/uid"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:hint="帐号" />
+
+        <EditText
+            android:id="@+id/pwd"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:hint="密码" />
+
+    </LinearLayout>
+
+
+    <Button
+        android:id="@+id/btn_submit"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="提交" />
+
+</LinearLayout>

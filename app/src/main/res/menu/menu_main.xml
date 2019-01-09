@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+    <item
+        android:id="@+id/reload"
+        android:title="@string/menu_reload"
+        app:showAsAction="ifRoom|withText" />
+    <item
+        android:id="@+id/clean"
+        android:title="@string/menu_clean" />
+    <item
+        android:id="@+id/close_music"
+        android:title="@string/menu_close_music" />
+</menu>

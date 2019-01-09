@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<litepal>
+    <dbname value="ticketTask" />
+    <version value="1" />
+    <list>
+        <mapping class="com.mobileTicket.hello12306.dao.TaskDao" />
+    </list>
+    <storage value="external" />
+</litepal>
