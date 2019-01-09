@@ -73,7 +73,7 @@ public class Hook12306Impl implements IXposedHookLoadPackage {
     private volatile String lastDfpValue = null;
     private AtomicBoolean getDfpSign = new AtomicBoolean(false);
     private Queue<Trains> trainsQueue = new ConcurrentLinkedDeque<>();
-    private volatile boolean isStarted = false;
+    private AtomicBoolean isStarted = new AtomicBoolean(false);
     private AtomicBoolean isProcessing = new AtomicBoolean(false);
     private AtomicInteger hourAlarm = new AtomicInteger(0);
     private AtomicInteger fetchCount = new AtomicInteger(0);
@@ -114,12 +114,12 @@ public class Hook12306Impl implements IXposedHookLoadPackage {
                                 }
                                 break;
                             case EventCode.CODE_TASK_CHANGE:
+                                isProcessing.compareAndSet(true, false);
+                                trainsQueue.clear();
                                 configQuery();
                                 break;
                             case EventCode.CODE_SWITCH_CHANGE:
-                                isStarted = msg.arg1 == 1;
-                                isProcessing.compareAndSet(true, false);
-                                trainsQueue.clear();
+                                isStarted.set(msg.arg1 == 1);
                                 break;
                             case EventCode.CODE_SELECT_PASSENGER:
                                 passengerResponse = response;
@@ -199,7 +199,7 @@ public class Hook12306Impl implements IXposedHookLoadPackage {
                 Log.d(TAG, "count=" + fetchCount.incrementAndGet() + ", sleep=" + sleepTime);
                 try {
                     Thread.sleep(sleepTime);
-                    if (isStarted) {
+                    if (isStarted.get()) {
                         int length = OrderConfig.INSTANCE.trainDate.size();
                         int select = fetchCount.get() % length == 0 ? length - 1 : 0;
                         queryLeftTicketZ(OrderConfig.INSTANCE.trainDate.get(select),
@@ -387,6 +387,7 @@ public class Hook12306Impl implements IXposedHookLoadPackage {
                             if (error_msg.contains("目前您还有未处理的订单")) {
                                 playMusic();
                                 isProcessing.set(true);
+                                isStarted.set(false);
                             }
                         }
                         printLog("submitTrainResult: " + reqParams.toString());
@@ -405,7 +406,8 @@ public class Hook12306Impl implements IXposedHookLoadPackage {
                                 printLog("wait Processing 1");
                             }
                         }
-                        printLog("checkOrderInfoResult: " + reqParams.toString());
+                        printLog("checkOrderInfoResult: " + reqParams.toString()
+                                + ", isProcessing=" + isProcessing.get());
                         showPrompt(reqParams.toString());
                         break;
                     case "getWaitTimeResult":
@@ -416,7 +418,7 @@ public class Hook12306Impl implements IXposedHookLoadPackage {
                             String orderId = reqParams.optString("orderId");
                             if (!TextUtils.isEmpty(orderId)) {
                                 playMusic();
-                                isStarted = false;
+                                isStarted.set(false);
                                 return;
                             }
                             if (waitTime <= 0) {
@@ -746,7 +748,7 @@ public class Hook12306Impl implements IXposedHookLoadPackage {
                     + ret + ")");
         } else {
             PageManager.getInstance().runJs("AlipayJSBridge.call('rpcWithBaseDTO',"
-                    + ret + ", function(res){AlipayJSBridge.call('" + callbackName + "',res)}))");
+                    + ret + ", function(res){AlipayJSBridge.call('" + callbackName + "',res)})");
         }
     }
 

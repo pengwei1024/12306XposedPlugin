@@ -54,6 +54,7 @@ public class ShareService extends Service implements MessageClient.QueryListener
         client = new MessageClient(this, this);
         createPopWindow();
         client.sendToTarget(EventCode.CODE_TASK_CHANGE);
+        notifySwitch();
     }
 
     public ShareService() {
@@ -63,7 +64,6 @@ public class ShareService extends Service implements MessageClient.QueryListener
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         Log.d(TAG, "onStartCommand " + hashCode());
-        notifySwitch();
         return START_STICKY;
     }
 
