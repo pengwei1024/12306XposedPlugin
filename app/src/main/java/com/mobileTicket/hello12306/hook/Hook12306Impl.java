@@ -79,6 +79,7 @@ public class Hook12306Impl implements IXposedHookLoadPackage {
     private AtomicBoolean isStarted = new AtomicBoolean(false);
     private AtomicBoolean isProcessing = new AtomicBoolean(false);
     private AtomicInteger fetchCount = new AtomicInteger(0);
+    private AtomicBoolean confirmPassengerLock = new AtomicBoolean(false);
     private volatile MessageClient.Response passengerResponse;
     private volatile MessageClient.Response trainListResponse;
     // location 截取长度
@@ -135,6 +136,7 @@ public class Hook12306Impl implements IXposedHookLoadPackage {
                                 break;
                             case EventCode.CODE_TASK_CHANGE:
                                 isProcessing.compareAndSet(true, false);
+                                confirmPassengerLock.set(false);
                                 configQuery();
                                 break;
                             case EventCode.CODE_SWITCH_CHANGE:
@@ -389,6 +391,7 @@ public class Hook12306Impl implements IXposedHookLoadPackage {
                         getDfpSign.set(true);
                         break;
                     case "submitTrainResult":
+                        confirmPassengerLock.set(false);
                         String success = reqParams.optString("succ_flag");
                         if ("1".equals(success)) {
                             isProcessing.set(true);
@@ -627,11 +630,15 @@ public class Hook12306Impl implements IXposedHookLoadPackage {
      * 提交订票信息
      *
      * @param train 车次信息
-     * @throws JSONException
+     * @throws JSONException JSONException
      */
     @AnyThread
     private void submitTrain(@NonNull Trains train) throws JSONException {
         if (lastDfpValue == null) {
+            return;
+        }
+        if (!confirmPassengerLock.compareAndSet(false, true)) {
+            printLog("wait confirmPassengerLock");
             return;
         }
         JSONObject jsonObject = new JSONObject();
@@ -781,9 +788,7 @@ public class Hook12306Impl implements IXposedHookLoadPackage {
     }
 
     /**
-     * 获取等待时间
-     *
-     * @throws JSONException
+     * 获取订单等待时间
      */
     private void getWaitTime() {
         try {
