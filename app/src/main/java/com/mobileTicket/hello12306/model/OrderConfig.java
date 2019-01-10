@@ -23,6 +23,7 @@ public class OrderConfig {
     public List<String> trainDate;
     // 车站信息
     public Pair<String, String> stationInfo;
+    public boolean autoLogin = true;
 
     public OrderConfig setTrains(List<String> trains) {
         this.trains = trains;
@@ -59,6 +60,11 @@ public class OrderConfig {
         return this;
     }
 
+    public OrderConfig setAutoLogin(boolean autoLogin) {
+        this.autoLogin = autoLogin;
+        return this;
+    }
+
     // 默认配置
     private static final OrderConfig DEFAULT = new OrderConfig()
             .setTrainDate(Collections.<String>emptyList())
@@ -66,6 +72,7 @@ public class OrderConfig {
             .setTrains(Collections.<String>emptyList())
             .setPassenger(new Passenger[0])
             .setSeatType(SeatType.YW)
+            .setAutoLogin(true)
             .setLoginUser("")
             .setLoginPassword("");
 
@@ -126,6 +133,7 @@ public class OrderConfig {
     public String toString() {
         return INSTANCE.stationInfo.first + "->" + INSTANCE.stationInfo.second + "; "
                 + passenger_names() + "; " + INSTANCE.seatType.getName() + "; "
-                + Utils.listToString(INSTANCE.trainDate);
+                + Utils.listToString(INSTANCE.trainDate)
+                + " autoLogin:" + autoLogin;
     }
 }

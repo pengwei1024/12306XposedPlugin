@@ -27,6 +27,7 @@ public class Trains {
     public String to_station_telecode;
     public String start_train_date;
     private boolean isSelected;
+    public String message;
     private HashMap<SeatType, Integer> ticketInfo = new HashMap<>();
 
     @WorkerThread
@@ -46,6 +47,7 @@ public class Trains {
         trains.from_station_telecode = item.optString("from_station_telecode");
         trains.to_station_telecode = item.optString("to_station_telecode");
         trains.start_train_date = item.optString("start_train_date");
+        trains.message = item.optString("message");
         // 解析余票
         if (!TextUtils.isEmpty(trains.ypInfoCover)) {
             HashMap<SeatType, Integer> hashMap = trains.getTicketInfo();

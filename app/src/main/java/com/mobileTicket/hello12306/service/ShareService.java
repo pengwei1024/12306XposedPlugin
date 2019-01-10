@@ -120,6 +120,7 @@ public class ShareService extends Service implements MessageClient.QueryListener
                                 if (taskDao == null) {
                                     response.call(Message.obtain(null, 0, -2, 0));
                                 } else {
+                                    boolean isAutoLogin = ticketKV.getBoolean(EventCode.KEY_AUTO_LOGIN, true);
                                     Message message = new Message();
                                     message.arg1 = 200;
                                     Bundle bundle = new Bundle();
@@ -131,6 +132,7 @@ public class ShareService extends Service implements MessageClient.QueryListener
                                     bundle.putString("uid", taskDao.getUid());
                                     bundle.putString("pwd", taskDao.getPwd());
                                     bundle.putString("type", taskDao.getType());
+                                    bundle.putBoolean("autoLogin", isAutoLogin);
                                     message.setData(bundle);
                                     response.call(message);
                                 }

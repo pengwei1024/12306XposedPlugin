@@ -11,4 +11,8 @@
     <item
         android:id="@+id/close_music"
         android:title="@string/menu_close_music" />
+
+    <item
+        android:id="@+id/auto_login"
+        android:title="@string/auto_login" />
 </menu>

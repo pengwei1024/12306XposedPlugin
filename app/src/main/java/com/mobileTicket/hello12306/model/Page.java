@@ -12,7 +12,7 @@ import java.util.Set;
 import java.util.Stack;
 
 /**
- * H5Activity 的实例
+ * Activity封装, 包含多个webView
  */
 public class Page {
     private static final String TAG = "XPage";

@@ -67,6 +67,7 @@ public class PageManager {
                     try {
                         webView.evaluateJavascriptWithException(js, null);
                     } catch (Exception e) {
+                        Log.e(TAG, "evaluateJavascriptWithException", e);
                         if (e instanceof InvocationTargetException) {
                             Throwable target = ((InvocationTargetException) e).getTargetException();
                             if (target != null && target.getMessage() != null
@@ -75,7 +76,6 @@ public class PageManager {
                                 page.popWebView();
                             }
                         }
-                        Log.e(TAG, "evaluateJavascriptWithException", e);
                     }
                 }
             };
@@ -86,7 +86,8 @@ public class PageManager {
             }
             Log.i(TAG, "webView:" + webView.hashCode() + ", queryJs: " + js);
         } else {
-            Log.w(TAG, "getWebView is Null");
+            Log.w(TAG, "getWebView is Null, page=" + page.hashCode() + ", pageSize=" + pages.size()
+            + ", activity=" + page.getActivity().getClass());
         }
     }
 

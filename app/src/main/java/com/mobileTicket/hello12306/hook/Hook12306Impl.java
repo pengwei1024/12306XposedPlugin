@@ -4,9 +4,11 @@ package com.mobileTicket.hello12306.hook;
 import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.app.Instrumentation;
+import android.content.BroadcastReceiver;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.graphics.Bitmap;
 import android.os.Bundle;
 import android.os.Handler;
@@ -44,15 +46,15 @@ import java.io.FileNotFoundException;
 import java.io.PrintStream;
 import java.lang.reflect.Method;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Date;
-import java.util.Locale;
-import java.util.Queue;
+import java.util.Map;
 import java.util.Random;
 import java.util.TimeZone;
 import java.util.Timer;
 import java.util.TimerTask;
-import java.util.concurrent.ConcurrentLinkedDeque;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -72,13 +74,15 @@ public class Hook12306Impl implements IXposedHookLoadPackage {
     private Vibrator vibrator;
     private volatile String lastDfpValue = null;
     private AtomicBoolean getDfpSign = new AtomicBoolean(false);
-    private Queue<Trains> trainsQueue = new ConcurrentLinkedDeque<>();
+    // Trains 缓存
+    private Map<String, Trains> trainsMap = new ConcurrentHashMap<>();
     private AtomicBoolean isStarted = new AtomicBoolean(false);
     private AtomicBoolean isProcessing = new AtomicBoolean(false);
-    private AtomicInteger hourAlarm = new AtomicInteger(0);
     private AtomicInteger fetchCount = new AtomicInteger(0);
     private volatile MessageClient.Response passengerResponse;
     private volatile MessageClient.Response trainListResponse;
+    // location 截取长度
+    private static final int LOCATION_CUT_OUT_COUNT = 150;
 
     @Override
     public void handleLoadPackage(final XC_LoadPackage.LoadPackageParam loadPackageParam) throws Throwable {
@@ -86,6 +90,22 @@ public class Hook12306Impl implements IXposedHookLoadPackage {
         if (!"com.MobileTicket".equals(packageName)) {
             return;
         }
+        // 每分钟整点提醒的广播
+        final BroadcastReceiver timeTickReceiver = new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context context, Intent intent) {
+                int min = Calendar.getInstance().get(Calendar.MINUTE);
+                Log.i(TAG, "timeTick minute=" + min + ", time=" + System.currentTimeMillis());
+                if (min == 0 || min == 30) {
+                    queryLeftTicketZ(OrderConfig.INSTANCE.trainDate.get(0),
+                            OrderConfig.INSTANCE.stationInfo.first,
+                            OrderConfig.INSTANCE.stationInfo.second, null);
+                } else if (min == 45 || min == 15) {
+                    PageManager.getInstance().runJs("javascript:var menu=document.getElementsByClassName" +
+                            "('vmc-menu-item');if(menu.length > 0){menu[0].click()}");
+                }
+            }
+        };
         final Handler mainHandler = new Handler(Looper.getMainLooper());
         // 首页 MainActivity生命周期
         final Class<?> MainActivity = loadPackageParam.classLoader.loadClass("com.MobileTicket.ui.activity.MainActivity");
@@ -115,7 +135,6 @@ public class Hook12306Impl implements IXposedHookLoadPackage {
                                 break;
                             case EventCode.CODE_TASK_CHANGE:
                                 isProcessing.compareAndSet(true, false);
-                                trainsQueue.clear();
                                 configQuery();
                                 break;
                             case EventCode.CODE_SWITCH_CHANGE:
@@ -129,13 +148,9 @@ public class Hook12306Impl implements IXposedHookLoadPackage {
                                 trainListResponse = response;
                                 Bundle bundle = msg.getData();
                                 if (bundle != null) {
-                                    try {
-                                        queryLeftTicketZ(bundle.getString("trainDate"),
-                                                bundle.getString("from"), bundle.getString("to"),
-                                                "queryTicket4Task");
-                                    } catch (JSONException e) {
-                                        e.printStackTrace();
-                                    }
+                                    queryLeftTicketZ(bundle.getString("trainDate"),
+                                            bundle.getString("from"), bundle.getString("to"),
+                                            "queryTicket4Task");
                                 }
                                 break;
                             default:
@@ -145,22 +160,20 @@ public class Hook12306Impl implements IXposedHookLoadPackage {
                 });
                 bindService();
                 messageClient.sendToTarget(Message.obtain(null, EventCode.CODE_QUERY_SELECT_TRANS), null);
-            }
-
-            @Override
-            protected void afterHookedMethod(MethodHookParam param) throws Throwable {
-                super.afterHookedMethod(param);
-                if (messageClient != null) {
-                    messageClient.getActivity().getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
-                }
+                IntentFilter timeFilter = new IntentFilter();
+                timeFilter.addAction(Intent.ACTION_TIME_TICK);
+                messageClient.getActivity().registerReceiver(timeTickReceiver, timeFilter);
+                messageClient.getActivity().getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
             }
         });
         XposedHelpers.findAndHookMethod(MainActivity, "onDestroy", new XC_MethodHook() {
             @Override
             protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
                 super.beforeHookedMethod(param);
+                printLog("MainActivity onDestroy");
                 PageManager.getInstance().pop(new Page((Activity) param.thisObject));
                 if (messageClient != null) {
+                    messageClient.getActivity().unregisterReceiver(timeTickReceiver);
                     messageClient.getActivity().getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
                     messageClient.onDestroy();
                 }
@@ -198,7 +211,6 @@ public class Hook12306Impl implements IXposedHookLoadPackage {
                 int sleepTime = new Random().nextInt(1200);
                 Log.d(TAG, "count=" + fetchCount.incrementAndGet() + ", sleep=" + sleepTime);
                 try {
-                    Thread.sleep(sleepTime);
                     if (isStarted.get()) {
                         int length = OrderConfig.INSTANCE.trainDate.size();
                         int select = fetchCount.get() % length == 0 ? length - 1 : 0;
@@ -206,13 +218,9 @@ public class Hook12306Impl implements IXposedHookLoadPackage {
                                 OrderConfig.INSTANCE.stationInfo.first,
                                 OrderConfig.INSTANCE.stationInfo.second, null);
                     }
+                    Thread.sleep(sleepTime);
                 } catch (Exception e) {
                     e.printStackTrace();
-                }
-                // 每一个小时强制刷新一次
-                if (hourAlarm.get() != hour) {
-                    hourAlarm.set(hour);
-                    PageManager.getInstance().runJs("javascript:var menu=document.getElementsByClassName('vmc-menu-item');if(menu.length > 0){menu[0].click()}");
                 }
             }
         }, 5000, 2000);
@@ -289,17 +297,21 @@ public class Hook12306Impl implements IXposedHookLoadPackage {
                 XposedBridge.log(TAG + " 【" + "onPageFinished" + "】" + param.args[0]);
                 String checkDomExistCallback = "if(!window.checkDomExistCallback){window.checkDomExistCallback=function(cls,callback){var count=0;var checkDomTimer=setInterval(function(){if(++count>30){clearInterval(checkDomTimer);return}var findNode=document.getElementsByClassName(cls);if(findNode.length>0){clearInterval(checkDomTimer);console.log(\"find Node count:\"+count);callback(findNode)}},200)}};";
                 if (url.contains("login.html")) {
-                    String user = OrderConfig.INSTANCE.loginUser;
-                    PageManager.getInstance().runJs(checkDomExistCallback + "checkDomExistCallback('loginInput',function(){document.getElementsByClassName('loginInput')[0].value='" + user + "';document.getElementsByClassName('passInput')[0].focus();AlipayJSBridge.call('x_user_pwd',{})});");
-                } else if (url.contains("passenger.html")) {
-                    StringBuilder userName = new StringBuilder();
-                    for (int i = 0; i < OrderConfig.INSTANCE.passenger.length; i++) {
-                        userName.append('\'').append(OrderConfig.INSTANCE.passenger[i].getName()).append('\'');
-                        if (i < OrderConfig.INSTANCE.passenger.length - 1) {
-                            userName.append(',');
-                        }
+                    if (OrderConfig.INSTANCE.autoLogin) {
+                        String user = OrderConfig.INSTANCE.loginUser;
+                        PageManager.getInstance().runJs(checkDomExistCallback + "checkDomExistCallback('loginInput',function(){document.getElementsByClassName('loginInput')[0].value='" + user + "';document.getElementsByClassName('passInput')[0].focus();AlipayJSBridge.call('x_user_pwd',{})});");
                     }
-                    PageManager.getInstance().runJs(checkDomExistCallback + "checkDomExistCallback('order-name',function(){var users=document.getElementsByClassName('order-name');var array=[" + userName + "];for(var i=0;i<users.length;i++){if(array.indexOf(users[i].innerHTML)>=0){if(!users[i].previousElementSibling['checked']){users[i].parentElement.click()}}else{if(users[i].previousElementSibling['checked']){users[i].parentElement.click()}}};AlipayJSBridge.call('x_passenger_click', {})});");
+                } else if (url.contains("passenger.html")) {
+                    if (OrderConfig.INSTANCE.autoLogin) {
+                        StringBuilder userName = new StringBuilder();
+                        for (int i = 0; i < OrderConfig.INSTANCE.passenger.length; i++) {
+                            userName.append('\'').append(OrderConfig.INSTANCE.passenger[i].getName()).append('\'');
+                            if (i < OrderConfig.INSTANCE.passenger.length - 1) {
+                                userName.append(',');
+                            }
+                        }
+                        PageManager.getInstance().runJs(checkDomExistCallback + "checkDomExistCallback('order-name',function(){var users=document.getElementsByClassName('order-name');var array=[" + userName + "];for(var i=0;i<users.length;i++){if(array.indexOf(users[i].innerHTML)>=0){if(!users[i].previousElementSibling['checked']){users[i].parentElement.click()}}else{if(users[i].previousElementSibling['checked']){users[i].parentElement.click()}}};AlipayJSBridge.call('x_passenger_click', {})});");
+                    }
                 } else if (url.contains("order.html")) {
 //                    String selectSeat = Config.INSTANCE.seatType.getName();
 //                    String orderJs = checkDomExistCallback + "checkDomExistCallback('train-num-time', function(){var train=document.getElementsByClassName('train-num-time')[0].firstChild.innerText;if(" + Utils.toJsArray(Config.INSTANCE.trains) + ".indexOf(train)<0){alert('train Error '+train);return}var train_seats=document.getElementsByClassName(\"train-seats\")[0];var seats=train_seats.getElementsByTagName(\"li\");console.log(seats);for(var i=0;i<seats.length;i++){if(seats[i].innerText.indexOf('" + selectSeat + "')>=0&&seats[i].getAttribute('class').indexOf('seat-selected')>=0){console.log('有票!!!', seats[i]);setTimeout(function(){document.getElementsByClassName(\"confirm-button\")[0].click()},2000);return}}AlipayJSBridge.call('x_order_exit')});";
@@ -348,7 +360,7 @@ public class Hook12306Impl implements IXposedHookLoadPackage {
                         executorService.execute(new Runnable() {
                             @Override
                             public void run() {
-                                if (OrderConfig.INSTANCE != null) {
+                                if (OrderConfig.INSTANCE.loginPassword != null) {
                                     Instrumentation inst = new Instrumentation();
                                     String pwd = OrderConfig.INSTANCE.loginPassword;
                                     for (int i = 0; i < pwd.length(); i++) {
@@ -377,7 +389,6 @@ public class Hook12306Impl implements IXposedHookLoadPackage {
                         getDfpSign.set(true);
                         break;
                     case "submitTrainResult":
-                        Log.d(TAG, "submitTrainResult:" + reqParams);
                         String success = reqParams.optString("succ_flag");
                         if ("1".equals(success)) {
                             isProcessing.set(true);
@@ -390,15 +401,23 @@ public class Hook12306Impl implements IXposedHookLoadPackage {
                                 isStarted.set(false);
                             }
                         }
-                        printLog("submitTrainResult: " + reqParams.toString());
+                        printLog("submitTrainResult: " + reqParams.toString() + ", isProcessing=" + isProcessing.get());
                         showPrompt(reqParams.toString());
                         break;
                     case "checkOrderInfoResult":
                         String location = reqParams.optString("location_code");
-                        Log.d(TAG, "checkOrderInfoResult:" + reqParams + ", location=" + location);
-                        Trains current = trainsQueue.poll();
-                        if (current != null && !TextUtils.isEmpty(location)
-                                && "1".equals(reqParams.optString("succ_flag"))) {
+                        printLog("checkOrderInfoResult: " + reqParams.toString()
+                                + ", isProcessing=" + isProcessing.get() + ", location=" + location);
+                        if (location == null || location.length() < LOCATION_CUT_OUT_COUNT) {
+                            return;
+                        }
+                        Trains current = trainsMap.get(location.substring(0, LOCATION_CUT_OUT_COUNT));
+                        if (current == null) {
+                            showPrompt("current Trains Null");
+                            printLog("current Trains Null: " + Utils.listToString(new ArrayList<>(trainsMap.keySet())));
+                            return;
+                        }
+                        if ("1".equals(reqParams.optString("succ_flag"))) {
                             current.location_code = location;
                             if (!isProcessing.get()) {
                                 submitTrain(current);
@@ -406,8 +425,6 @@ public class Hook12306Impl implements IXposedHookLoadPackage {
                                 printLog("wait Processing 1");
                             }
                         }
-                        printLog("checkOrderInfoResult: " + reqParams.toString()
-                                + ", isProcessing=" + isProcessing.get());
                         showPrompt(reqParams.toString());
                         break;
                     case "getWaitTimeResult":
@@ -489,13 +506,16 @@ public class Hook12306Impl implements IXposedHookLoadPackage {
                                         if (trains.isMatch(OrderConfig.INSTANCE)) {
                                             Log.d("SelectedTicketInfo", trains.toString());
                                             if (!isProcessing.get()) {
-                                                trainsQueue.offer(trains);
-                                                checkOrderInfo(trains.location_code);
+                                                if (trains.location_code != null && trains.location_code.length()
+                                                        > LOCATION_CUT_OUT_COUNT) {
+                                                    trainsMap.put(trains.location_code.substring(0,
+                                                            LOCATION_CUT_OUT_COUNT), trains);
+                                                }
+                                                checkOrderInfo(trains);
                                             } else {
                                                 printLog("wait Processing 2");
                                             }
                                             printLog(trains.toString() + ", json=" + item.toString());
-//                                            PageManager.getInstance().runJs("var list=document.getElementsByClassName(\"train-code\");for(var i=0;i<list.length;i++){if(list[i].innerHTML==='" + trains.code + "'){list[i].click();break}}");
                                             break;
                                         }
                                     }
@@ -555,7 +575,7 @@ public class Hook12306Impl implements IXposedHookLoadPackage {
                         printLog("native getDfp=" + lastDfpValue);
                     }
                 }
-                if (OrderConfig.INSTANCE != null && jsonObject.toString().contains("\\\"userName\\\"") && !jsonObject.toString().contains(OrderConfig.INSTANCE.loginUser)) {
+                if (OrderConfig.INSTANCE.loginUser != null && jsonObject.toString().contains("\\\"userName\\\"") && !jsonObject.toString().contains(OrderConfig.INSTANCE.loginUser)) {
                     Method putMethod = JSONObject.getDeclaredMethod("put", String.class, Object.class);
                     Method getJSONObject = JSONObject.getDeclaredMethod("getJSONObject", String.class);
                     Object data = getJSONObject.invoke(jsonObject, "data");
@@ -664,10 +684,15 @@ public class Hook12306Impl implements IXposedHookLoadPackage {
     /**
      * 检查订单，交换location_code
      *
-     * @param locationCode
-     * @throws JSONException
+     * @param trains 车次信息
+     * @throws JSONException JSONException
      */
-    private void checkOrderInfo(String locationCode) throws JSONException {
+    private void checkOrderInfo(@NonNull Trains trains) throws JSONException {
+        if (TextUtils.isEmpty(trains.location_code)) {
+            printLog("checkOrderInfo: location_code Empty, message=" + trains.message);
+            showPrompt("checkOrderInfo message=" + trains.message);
+            return;
+        }
         JSONObject jsonObject = new JSONObject();
         JSONObject header = new JSONObject();
         header.put("needLogin", "true");
@@ -679,7 +704,7 @@ public class Hook12306Impl implements IXposedHookLoadPackage {
         JSONObject jsonArrayItem = new JSONObject();
         JSONObject _requestBody = new JSONObject();
         _requestBody.put("tour_flag", "dc");
-        _requestBody.put("secret_str", locationCode);
+        _requestBody.put("secret_str", trains.location_code);
         jsonArrayItem.put("_requestBody", _requestBody);
         requestData.put(jsonArrayItem);
         jsonObject.put("requestData", requestData);
@@ -694,61 +719,64 @@ public class Hook12306Impl implements IXposedHookLoadPackage {
      * @param trainDate 开车日期
      * @param from      起始车站
      * @param to        结束车站
-     * @throws JSONException Exception
      */
     private void queryLeftTicketZ(@Nullable String trainDate, @Nullable String from,
-                                  @Nullable String to, @Nullable String callbackName) throws JSONException {
+                                  @Nullable String to, @Nullable String callbackName) {
         if (trainDate == null || from == null || to == null) {
             return;
         }
         if (OrderConfig.INSTANCE.trainDate.isEmpty()) {
             return;
         }
-        JSONObject jsonObject = new JSONObject();
-        JSONObject header = new JSONObject();
-        jsonObject.put("headers", header);
-        jsonObject.put("httpGet", true);
-        jsonObject.put("signType", -1);
-        jsonObject.put("operationType", "com.cars.otsmobile.queryLeftTicketZ");
-        JSONArray requestData = new JSONArray();
-        JSONObject jsonArrayItem = new JSONObject();
-        jsonArrayItem.put("train_date", trainDate);
-        jsonArrayItem.put("from_station", from);
-        jsonArrayItem.put("to_station", to);
-        jsonArrayItem.put("station_train_code", "");
-        jsonArrayItem.put("train_headers", "QB#");
-        jsonArrayItem.put("train_flag", "");
-        jsonArrayItem.put("start_time_begin", "0000");
-        jsonArrayItem.put("start_time_end", "2400");
-        jsonArrayItem.put("seat_type", "0");
-        jsonArrayItem.put("ticket_num", "");
-        jsonArrayItem.put("seatBack_Type", "");
-        jsonArrayItem.put("dfpStr", "");
-        jsonArrayItem.put("purpose_codes", "00");
-        JSONArray cacheDataKeys = new JSONArray();
-        cacheDataKeys.put("train_date");
-        cacheDataKeys.put("purpose_codes");
-        cacheDataKeys.put("from_station");
-        cacheDataKeys.put("to_station");
-        cacheDataKeys.put("station_train_code");
-        cacheDataKeys.put("start_time_begin");
-        cacheDataKeys.put("start_time_end");
-        cacheDataKeys.put("train_headers");
-        cacheDataKeys.put("train_flag");
-        cacheDataKeys.put("seat_type");
-        cacheDataKeys.put("seatBack_Type");
-        cacheDataKeys.put("ticket_num");
-        cacheDataKeys.put("dfpStr");
-        jsonObject.put("cacheDataKeys", cacheDataKeys);
-        requestData.put(jsonArrayItem);
-        jsonObject.put("requestData", requestData);
-        String ret = jsonObject.toString().replaceAll("\\\\/", "/");
-        if (TextUtils.isEmpty(callbackName)) {
-            PageManager.getInstance().runJs("AlipayJSBridge.call('rpcWithBaseDTO',"
-                    + ret + ")");
-        } else {
-            PageManager.getInstance().runJs("AlipayJSBridge.call('rpcWithBaseDTO',"
-                    + ret + ", function(res){AlipayJSBridge.call('" + callbackName + "',res)})");
+        try {
+            JSONObject jsonObject = new JSONObject();
+            JSONObject header = new JSONObject();
+            jsonObject.put("headers", header);
+            jsonObject.put("httpGet", true);
+            jsonObject.put("signType", -1);
+            jsonObject.put("operationType", "com.cars.otsmobile.queryLeftTicketZ");
+            JSONArray requestData = new JSONArray();
+            JSONObject jsonArrayItem = new JSONObject();
+            jsonArrayItem.put("train_date", trainDate);
+            jsonArrayItem.put("from_station", from);
+            jsonArrayItem.put("to_station", to);
+            jsonArrayItem.put("station_train_code", "");
+            jsonArrayItem.put("train_headers", "QB#");
+            jsonArrayItem.put("train_flag", "");
+            jsonArrayItem.put("start_time_begin", "0000");
+            jsonArrayItem.put("start_time_end", "2400");
+            jsonArrayItem.put("seat_type", "0");
+            jsonArrayItem.put("ticket_num", "");
+            jsonArrayItem.put("seatBack_Type", "");
+            jsonArrayItem.put("dfpStr", "");
+            jsonArrayItem.put("purpose_codes", "00");
+            JSONArray cacheDataKeys = new JSONArray();
+            cacheDataKeys.put("train_date");
+            cacheDataKeys.put("purpose_codes");
+            cacheDataKeys.put("from_station");
+            cacheDataKeys.put("to_station");
+            cacheDataKeys.put("station_train_code");
+            cacheDataKeys.put("start_time_begin");
+            cacheDataKeys.put("start_time_end");
+            cacheDataKeys.put("train_headers");
+            cacheDataKeys.put("train_flag");
+            cacheDataKeys.put("seat_type");
+            cacheDataKeys.put("seatBack_Type");
+            cacheDataKeys.put("ticket_num");
+            cacheDataKeys.put("dfpStr");
+            jsonObject.put("cacheDataKeys", cacheDataKeys);
+            requestData.put(jsonArrayItem);
+            jsonObject.put("requestData", requestData);
+            String ret = jsonObject.toString().replaceAll("\\\\/", "/");
+            if (TextUtils.isEmpty(callbackName)) {
+                PageManager.getInstance().runJs("AlipayJSBridge.call('rpcWithBaseDTO',"
+                        + ret + ")");
+            } else {
+                PageManager.getInstance().runJs("AlipayJSBridge.call('rpcWithBaseDTO',"
+                        + ret + ", function(res){AlipayJSBridge.call('" + callbackName + "',res)})");
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "queryLeftTicketZ", e);
         }
     }
 
@@ -811,8 +839,9 @@ public class Hook12306Impl implements IXposedHookLoadPackage {
     }
 
     private PrintStream printStream = null;
-    private SimpleDateFormat dateFormat = new SimpleDateFormat("MM-dd HH:mm:ss:SSS", Locale.CHINA);
-    private TimeZone gmt = TimeZone.getTimeZone("GMT");
+    @SuppressLint("SimpleDateFormat")
+    private SimpleDateFormat dateFormat = new SimpleDateFormat("MM-dd HH:mm:ss:SSS");
+    private TimeZone gmt = TimeZone.getTimeZone("Asia/Shanghai");
 
     /**
      * 打印日志到文件
@@ -838,7 +867,8 @@ public class Hook12306Impl implements IXposedHookLoadPackage {
                 dateFormat.setTimeZone(gmt);
                 String time = dateFormat.format(new Date());
                 if (printStream != null) {
-                    printStream.println("[" + time + "] " + log);
+                    printStream.println(String.format("[%s][%s] ", time,
+                            Thread.currentThread().getName()) + log);
                 }
             }
         });
@@ -922,7 +952,8 @@ public class Hook12306Impl implements IXposedHookLoadPackage {
                                 .setPassenger(Passenger.parse(users).toArray(new Passenger[0]))
                                 .setSeatType(SeatType.parse(bundle.getString("type")))
                                 .setLoginUser(bundle.getString("uid"))
-                                .setLoginPassword(bundle.getString("pwd"));
+                                .setLoginPassword(bundle.getString("pwd"))
+                                .setAutoLogin(bundle.getBoolean("autoLogin", true));
                         sendUIMessage(EventCode.CODE_TICKET_CONFIG, OrderConfig.INSTANCE.toString());
                     }
                 } else if (message.arg1 == -1) {
@@ -930,7 +961,8 @@ public class Hook12306Impl implements IXposedHookLoadPackage {
                 } else if (message.arg1 == -2) {
                     sendUIMessage(EventCode.CODE_TICKET_CONFIG, "配置文件被删除");
                 } else {
-                    sendUIMessage(EventCode.CODE_TICKET_CONFIG, "未知异常");
+                    sendUIMessage(EventCode.CODE_TICKET_CONFIG, "未知异常:" + message.arg1 + ", "
+                    + OrderConfig.INSTANCE.toString());
                 }
             }
         });

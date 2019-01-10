@@ -24,4 +24,6 @@ public interface EventCode {
     String KEY_TICKET_CACHE = "KEY_TICKET_CACHE";
     // 选择的任务ID, 默认-1
     String KEY_TASK_SELECTED_ID = "KEY_TASK_SELECTED_ID";
+    // 标记是否自动登录
+    String KEY_AUTO_LOGIN = "KEY_AUTO_LOGIN";
 }

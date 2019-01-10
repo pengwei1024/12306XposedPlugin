@@ -82,6 +82,20 @@ public class MainActivity extends AppCompatActivity implements MessageClient.Que
             case R.id.close_music:
                 messageClient.sendToTarget(Message.obtain(null, EventCode.CODE_CLOSE_MUSIC), null);
                 break;
+            case R.id.auto_login:
+                final boolean isAutoLogin = ticketKV.getBoolean(EventCode.KEY_AUTO_LOGIN, true);
+                new AlertDialog.Builder(this)
+                        .setMessage("自动登录:" + isAutoLogin)
+                        .setNegativeButton("取消", null)
+                        .setPositiveButton(isAutoLogin ? "取消自动登录" : "自动登录", new DialogInterface.OnClickListener() {
+                            @Override
+                            public void onClick(DialogInterface dialog, int which) {
+                                ticketKV.putBoolean(EventCode.KEY_AUTO_LOGIN, !isAutoLogin);
+                                sendSelectedChange();
+                            }
+                        })
+                        .show();
+                break;
             default:
                 break;
         }
@@ -91,7 +105,7 @@ public class MainActivity extends AppCompatActivity implements MessageClient.Que
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
-        if (resultCode  == RESULT_OK) {
+        if (resultCode == RESULT_OK) {
             adapter.update();
             sendSelectedChange();
         }
@@ -203,17 +217,17 @@ public class MainActivity extends AppCompatActivity implements MessageClient.Que
                                     taskDao.setStatus(1);
                                     taskDao.saveOrUpdateAsync("id=?", String.valueOf(taskDao.getId()))
                                             .listen(new SaveCallback() {
-                                        @Override
-                                        public void onFinish(boolean success) {
-                                            sendSelectedChange();
-                                            runOnUiThread(new Runnable() {
                                                 @Override
-                                                public void run() {
-                                                    adapter.update();
+                                                public void onFinish(boolean success) {
+                                                    sendSelectedChange();
+                                                    runOnUiThread(new Runnable() {
+                                                        @Override
+                                                        public void run() {
+                                                            adapter.update();
+                                                        }
+                                                    });
                                                 }
                                             });
-                                        }
-                                    });
                                     break;
                                 case 2:
                                     Intent it = new Intent(MainActivity.this, AddTaskActivity.class);
