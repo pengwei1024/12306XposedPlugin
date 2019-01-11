@@ -7,7 +7,6 @@ import com.mobileTicket.hello12306.util.Utils;
 
 import org.json.JSONObject;
 
-import java.util.Comparator;
 import java.util.HashMap;
 
 public class Trains {
@@ -125,13 +124,6 @@ public class Trains {
             return getTicketNum(config.seatType) >= config.passenger.length;
         }
         return false;
-    }
-
-    public static class SelectedComparable implements Comparator<Trains> {
-        @Override
-        public int compare(Trains o1, Trains o2) {
-            return Boolean.compare(o2.isSelected, o1.isSelected);
-        }
     }
 
     private HashMap<SeatType, Integer> getTicketInfo() {

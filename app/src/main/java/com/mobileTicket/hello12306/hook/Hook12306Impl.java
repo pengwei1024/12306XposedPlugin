@@ -36,6 +36,7 @@ import com.mobileTicket.hello12306.util.MessageUtil;
 import com.mobileTicket.hello12306.util.PageManager;
 import com.mobileTicket.hello12306.util.Utils;
 import com.mobileTicket.hello12306.widget.XWebView;
+import com.uc.webview.export.JavascriptInterface;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -69,6 +70,7 @@ import de.robv.android.xposed.callbacks.XC_LoadPackage;
 public class Hook12306Impl implements IXposedHookLoadPackage {
     private static final String TAG = "Hook12306";
     private ExecutorService executorService = Executors.newCachedThreadPool();
+    private ExecutorService logService = Executors.newSingleThreadExecutor();
     private String newestTicket = null;
     private MessageClient messageClient;
     private Vibrator vibrator;
@@ -82,6 +84,10 @@ public class Hook12306Impl implements IXposedHookLoadPackage {
     private AtomicBoolean confirmPassengerLock = new AtomicBoolean(false);
     private volatile MessageClient.Response passengerResponse;
     private volatile MessageClient.Response trainListResponse;
+    // 当前正在提交的车次
+    private volatile Trains currentTrain;
+    // 小黑屋
+    private Map<String, Long> blackList = new ConcurrentHashMap<>();
     // location 截取长度
     private static final int LOCATION_CUT_OUT_COUNT = 150;
 
@@ -271,6 +277,13 @@ public class Hook12306Impl implements IXposedHookLoadPackage {
                 XposedBridge.log(TAG + " 【" + "goBack" + "】");
             }
         });
+        final Object hookJSBridgeObject = new Object() {
+            @android.webkit.JavascriptInterface
+            @JavascriptInterface
+            public void call(String msg) {
+                Log.i("queryJs", "####:" + msg);
+            }
+        };
         // WebViewClient事件
         final Class<?> aPWebView = loadPackageParam.classLoader.loadClass("com.alipay.mobile.nebula.webview.APWebView");
         final Class<?> H5WebViewClient = loadPackageParam.classLoader.loadClass("com.alipay.mobile.nebulacore.web.H5WebViewClient");
@@ -281,6 +294,7 @@ public class Hook12306Impl implements IXposedHookLoadPackage {
                 XposedBridge.log(TAG + " 【" + "onPageStarted" + "】" + param.args[0]);
                 XWebView webView = new XWebView(param.args[0]);
                 webView.setWebContentsDebuggingEnabled(true);
+                webView.addJavascriptInterface(hookJSBridgeObject, "Hook12306JSBridge");
             }
         });
         XposedHelpers.findAndHookMethod(H5WebViewClient, "onPageFinished", aPWebView, String.class, long.class, new XC_MethodHook() {
@@ -402,6 +416,11 @@ public class Hook12306Impl implements IXposedHookLoadPackage {
                                 playMusic();
                                 isProcessing.set(true);
                                 isStarted.set(false);
+                            } else if (error_msg.contains("目前排队人数已经超过余票张数")) {
+                                if (currentTrain != null) {
+                                    blackList.put(currentTrain.code, System.currentTimeMillis());
+                                    printLog("加入小黑屋:" + currentTrain.code);
+                                }
                             }
                         }
                         printLog("submitTrainResult: " + reqParams.toString() + ", isProcessing=" + isProcessing.get());
@@ -424,6 +443,7 @@ public class Hook12306Impl implements IXposedHookLoadPackage {
                             current.location_code = location;
                             if (!isProcessing.get()) {
                                 submitTrain(current);
+                                currentTrain = current;
                             } else {
                                 printLog("wait Processing 1");
                             }
@@ -507,7 +527,18 @@ public class Hook12306Impl implements IXposedHookLoadPackage {
                                         Trains trains = Trains.loads(item);
                                         Log.d("AllTicketInfo", trains.toString());
                                         if (trains.isMatch(OrderConfig.INSTANCE)) {
-                                            Log.d("SelectedTicketInfo", trains.toString());
+                                            if (blackList.containsKey(trains.code)) {
+                                                Long blackTime = blackList.get(trains.code);
+                                                if (blackTime != null) {
+                                                    if (System.currentTimeMillis() - blackTime >= 10_000) {
+                                                        blackList.remove(trains.code);
+                                                        printLog("解除小黑屋:" + trains.code);
+                                                    } else {
+                                                        printLog("呆在小黑屋:" + trains.code);
+                                                        continue;
+                                                    }
+                                                }
+                                            }
                                             if (!isProcessing.get()) {
                                                 if (trains.location_code != null && trains.location_code.length()
                                                         > LOCATION_CUT_OUT_COUNT) {
@@ -518,6 +549,7 @@ public class Hook12306Impl implements IXposedHookLoadPackage {
                                             } else {
                                                 printLog("wait Processing 2");
                                             }
+                                            Log.d("SelectedTicketInfo", trains.toString());
                                             printLog(trains.toString() + ", json=" + item.toString());
                                             break;
                                         }
@@ -640,6 +672,8 @@ public class Hook12306Impl implements IXposedHookLoadPackage {
         if (!confirmPassengerLock.compareAndSet(false, true)) {
             printLog("wait confirmPassengerLock");
             return;
+        } else {
+            printLog("get confirmPassengerLock && confirmPassengerInfoSingle");
         }
         JSONObject jsonObject = new JSONObject();
         JSONObject header = new JSONObject();
@@ -817,8 +851,6 @@ public class Hook12306Impl implements IXposedHookLoadPackage {
 
     /**
      * 获取联系人
-     *
-     * @throws JSONException
      */
     private void queryPassenger() {
         try {
@@ -854,26 +886,26 @@ public class Hook12306Impl implements IXposedHookLoadPackage {
      * @param log 日志内容
      */
     @SuppressLint("SdCardPath")
-    private synchronized void printLog(final String log) {
+    private void printLog(final String log) {
         if (log == null) {
             return;
         }
-        Log.d(TAG, "printLog:" + log);
-        executorService.submit(new Runnable() {
+        final String threadName = Thread.currentThread().getName();
+        logService.execute(new Runnable() {
             @Override
             public void run() {
+                Log.d(TAG, "printLog:" + log);
                 if (printStream == null || printStream.checkError()) {
                     try {
                         printStream = new PrintStream(new File("/sdcard/12306Hook.txt"));
                     } catch (FileNotFoundException e) {
                         e.printStackTrace();
                     }
+                    dateFormat.setTimeZone(gmt);
                 }
-                dateFormat.setTimeZone(gmt);
                 String time = dateFormat.format(new Date());
                 if (printStream != null) {
-                    printStream.println(String.format("[%s][%s] ", time,
-                            Thread.currentThread().getName()) + log);
+                    printStream.println(String.format("[%s][%s] ", time, threadName) + log);
                 }
             }
         });
@@ -903,7 +935,7 @@ public class Hook12306Impl implements IXposedHookLoadPackage {
                         stringBuilder.append(trains.code).append(trains.getTicketNumString()).append("\n");
                     }
                 }
-                stringBuilder.append(startTrainDate).append("\n");
+                stringBuilder.append(startTrainDate);
                 if (messageClient != null) {
                     Message message = Message.obtain(null, EventCode.CODE_SHOW_REQUEST);
                     Bundle bundle = new Bundle();
@@ -939,6 +971,9 @@ public class Hook12306Impl implements IXposedHookLoadPackage {
         });
     }
 
+    /**
+     * 查询配置信息
+     */
     private void configQuery() {
         messageClient.sendToTarget(Message.obtain(null, EventCode.CODE_QUERY_TASK), new MessageClient.Callback() {
             @Override

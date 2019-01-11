@@ -13,6 +13,7 @@ import java.util.Map;
 public class XWebView implements APWebView {
     private final Object aPWebView;
     private final Class<?> aPWebViewCls;
+    private Method evaluateJavascript;
 
     public XWebView(Object aPWebView) {
         this.aPWebView = aPWebView;
@@ -21,7 +22,13 @@ public class XWebView implements APWebView {
 
     @Override
     public void addJavascriptInterface(Object obj, String str) {
-
+        try {
+            Method method = aPWebViewCls.getDeclaredMethod("addJavascriptInterface",
+                    Object.class, String.class);
+            method.invoke(aPWebView, obj, str);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 
     @Override
@@ -77,20 +84,17 @@ public class XWebView implements APWebView {
     @Override
     public void evaluateJavascript(String js, ValueCallback<String> valueCallback) {
         try {
-            Method method = aPWebViewCls.getDeclaredMethod("loadUrl", String.class);
-            if (method != null) {
-                method.invoke(aPWebView, "javascript:" + js);
-            }
+            evaluateJavascriptWithException(js, valueCallback);
         } catch (Exception e) {
             e.printStackTrace();
         }
     }
 
     public void evaluateJavascriptWithException(String js, ValueCallback<String> valueCallback) throws Exception {
-        Method method = aPWebViewCls.getDeclaredMethod("loadUrl", String.class);
-        if (method != null) {
-            method.invoke(aPWebView, "javascript:" + js);
+        if (evaluateJavascript == null) {
+            evaluateJavascript = aPWebViewCls.getDeclaredMethod("evaluateJavascript", String.class, ValueCallback.class);
         }
+        evaluateJavascript.invoke(aPWebView, js, valueCallback);
     }
 
     @Override
@@ -147,9 +151,7 @@ public class XWebView implements APWebView {
     public String getTitle() {
         try {
             Method method = aPWebViewCls.getDeclaredMethod("getTitle");
-            if (method != null) {
-                return (String) method.invoke(aPWebView);
-            }
+            return (String) method.invoke(aPWebView);
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -160,9 +162,7 @@ public class XWebView implements APWebView {
     public String getUrl() {
         try {
             Method method = aPWebViewCls.getDeclaredMethod("getUrl");
-            if (method != null) {
-                return (String) method.invoke(aPWebView);
-            }
+            return (String) method.invoke(aPWebView);
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -183,9 +183,7 @@ public class XWebView implements APWebView {
     public void goBack() {
         try {
             Method method = aPWebViewCls.getDeclaredMethod("goBack");
-            if (method != null) {
-                method.invoke(aPWebView);
-            }
+            method.invoke(aPWebView);
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -223,7 +221,12 @@ public class XWebView implements APWebView {
 
     @Override
     public void loadUrl(String str) {
-
+        try {
+            Method loadUrl = aPWebViewCls.getDeclaredMethod("loadUrl", String.class);
+            loadUrl.invoke(aPWebView, str);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 
     @Override

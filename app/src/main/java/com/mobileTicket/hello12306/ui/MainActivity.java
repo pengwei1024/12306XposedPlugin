@@ -77,7 +77,6 @@ public class MainActivity extends AppCompatActivity implements MessageClient.Que
             case R.id.clean:
                 adapter.update();
                 sendSelectedChange();
-                messageClient.sendToTarget(EventCode.CODE_SHOW_PROMPT, "", null);
                 break;
             case R.id.close_music:
                 messageClient.sendToTarget(Message.obtain(null, EventCode.CODE_CLOSE_MUSIC), null);
@@ -127,6 +126,7 @@ public class MainActivity extends AppCompatActivity implements MessageClient.Que
      */
     private void sendSelectedChange() {
         messageClient.sendToTarget(EventCode.CODE_TASK_CHANGE);
+        messageClient.sendToTarget(EventCode.CODE_SHOW_PROMPT, "", null);
     }
 
     class MainAdapter extends RecyclerView.Adapter<MainViewHolder> {
