@@ -18,6 +18,7 @@ import android.os.Vibrator;
 import android.support.annotation.AnyThread;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
+import android.support.annotation.WorkerThread;
 import android.text.TextUtils;
 import android.util.Log;
 import android.util.Pair;
@@ -36,7 +37,6 @@ import com.mobileTicket.hello12306.util.MessageUtil;
 import com.mobileTicket.hello12306.util.PageManager;
 import com.mobileTicket.hello12306.util.Utils;
 import com.mobileTicket.hello12306.widget.XWebView;
-import com.uc.webview.export.JavascriptInterface;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -71,7 +71,6 @@ public class Hook12306Impl implements IXposedHookLoadPackage {
     private static final String TAG = "Hook12306";
     private ExecutorService executorService = Executors.newCachedThreadPool();
     private ExecutorService logService = Executors.newSingleThreadExecutor();
-    private String newestTicket = null;
     private MessageClient messageClient;
     private Vibrator vibrator;
     private volatile String lastDfpValue = null;
@@ -129,7 +128,7 @@ public class Hook12306Impl implements IXposedHookLoadPackage {
                             case EventCode.CODE_QUERY_TICKET:
                                 Message msg1 = Message.obtain();
                                 Bundle bundle1 = new Bundle();
-                                bundle1.putString("data", newestTicket);
+                                bundle1.putString("data", "");
                                 msg1.setData(bundle1);
                                 response.call(msg1);
                                 break;
@@ -277,13 +276,6 @@ public class Hook12306Impl implements IXposedHookLoadPackage {
                 XposedBridge.log(TAG + " 【" + "goBack" + "】");
             }
         });
-        final Object hookJSBridgeObject = new Object() {
-            @android.webkit.JavascriptInterface
-            @JavascriptInterface
-            public void call(String msg) {
-                Log.i("queryJs", "####:" + msg);
-            }
-        };
         // WebViewClient事件
         final Class<?> aPWebView = loadPackageParam.classLoader.loadClass("com.alipay.mobile.nebula.webview.APWebView");
         final Class<?> H5WebViewClient = loadPackageParam.classLoader.loadClass("com.alipay.mobile.nebulacore.web.H5WebViewClient");
@@ -294,7 +286,6 @@ public class Hook12306Impl implements IXposedHookLoadPackage {
                 XposedBridge.log(TAG + " 【" + "onPageStarted" + "】" + param.args[0]);
                 XWebView webView = new XWebView(param.args[0]);
                 webView.setWebContentsDebuggingEnabled(true);
-                webView.addJavascriptInterface(hookJSBridgeObject, "Hook12306JSBridge");
             }
         });
         XposedHelpers.findAndHookMethod(H5WebViewClient, "onPageFinished", aPWebView, String.class, long.class, new XC_MethodHook() {
@@ -342,6 +333,7 @@ public class Hook12306Impl implements IXposedHookLoadPackage {
         final Class<?> H5BridgeImpl = loadPackageParam.classLoader.loadClass("com.alipay.mobile.nebulacore.bridge.H5BridgeImpl");
         final Class<?> H5Event = loadPackageParam.classLoader.loadClass("com.alipay.mobile.h5container.api.H5Event");
         final Class<?> H5BridgeContext = loadPackageParam.classLoader.loadClass("com.alipay.mobile.h5container.api.H5BridgeContext");
+        final Method getParamMethod = H5Event.getMethod("getParam");
         XposedHelpers.findAndHookMethod(H5BridgeImpl, "b", H5Event, H5BridgeContext, new XC_MethodHook() {
             @Override
             protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
@@ -505,64 +497,22 @@ public class Hook12306Impl implements IXposedHookLoadPackage {
         });
         XposedHelpers.findAndHookMethod(H5BridgeImpl, "b", H5Event, new XC_MethodHook() {
             @Override
-            protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
+            protected void beforeHookedMethod(final MethodHookParam param) throws Throwable {
                 super.beforeHookedMethod(param);
-                Method getParamMethod = H5Event.getMethod("getParam");
                 final Object params = getParamMethod.invoke(param.args[0]);
                 if (params == null) {
                     return;
                 }
-                Log.w(TAG, "ticketResult=" + params);
-                if (params.toString().contains("ticketResult")) {
-                    executorService.execute(new Runnable() {
-                        @Override
-                        public void run() {
-                            try {
-                                JSONObject jsonObject = new JSONObject(params.toString());
-                                JSONArray array = jsonObject.optJSONArray("ticketResult");
-                                if (array != null) {
-                                    for (int i = 0; i < array.length(); i++) {
-                                        JSONObject item = array.optJSONObject(i);
-                                        Log.d("itemTicketInfo", item.toString());
-                                        Trains trains = Trains.loads(item);
-                                        Log.d("AllTicketInfo", trains.toString());
-                                        if (trains.isMatch(OrderConfig.INSTANCE)) {
-                                            if (blackList.containsKey(trains.code)) {
-                                                Long blackTime = blackList.get(trains.code);
-                                                if (blackTime != null) {
-                                                    if (System.currentTimeMillis() - blackTime >= 10_000) {
-                                                        blackList.remove(trains.code);
-                                                        printLog("解除小黑屋:" + trains.code);
-                                                    } else {
-                                                        printLog("呆在小黑屋:" + trains.code);
-                                                        continue;
-                                                    }
-                                                }
-                                            }
-                                            if (!isProcessing.get()) {
-                                                if (trains.location_code != null && trains.location_code.length()
-                                                        > LOCATION_CUT_OUT_COUNT) {
-                                                    trainsMap.put(trains.location_code.substring(0,
-                                                            LOCATION_CUT_OUT_COUNT), trains);
-                                                }
-                                                checkOrderInfo(trains);
-                                            } else {
-                                                printLog("wait Processing 2");
-                                            }
-                                            Log.d("SelectedTicketInfo", trains.toString());
-                                            printLog(trains.toString() + ", json=" + item.toString());
-                                            break;
-                                        }
-                                    }
-                                    showRequest(array);
-                                }
-                            } catch (JSONException e) {
-                                e.printStackTrace();
-                            }
+                executorService.execute(new Runnable() {
+                    @Override
+                    public void run() {
+                        String paramString = params.toString();
+                        if (paramString.contains("\"ticketResult\"")) {
+                            parseTicket(paramString);
                         }
-                    });
-                    newestTicket = params.toString();
-                }
+                        Log.w(TAG, "ticketResult=" + paramString);
+                    }
+                });
             }
         });
         final Class<?> H5PageData = loadPackageParam.classLoader.loadClass("com.alipay.mobile.h5container.api.H5PageData");
@@ -622,6 +572,58 @@ public class Hook12306Impl implements IXposedHookLoadPackage {
                 super.beforeHookedMethod(param);
             }
         });
+    }
+
+    /**
+     * 解析车票信息
+     *
+     * @param ticketResult 票信息
+     */
+    @WorkerThread
+    private void parseTicket(@NonNull String ticketResult) {
+        try {
+            JSONObject jsonObject = new JSONObject(ticketResult);
+            JSONArray array = jsonObject.optJSONArray("ticketResult");
+            if (array == null) {
+                return;
+            }
+            for (int i = 0; i < array.length(); i++) {
+                final JSONObject item = array.optJSONObject(i);
+                executorService.execute(new Runnable() {
+                    @Override
+                    public void run() {
+                        Trains trains = Trains.loads(item);
+                        if (trains.isMatch(OrderConfig.INSTANCE)) {
+                            if (blackList.containsKey(trains.code)) {
+                                Long blackTime = blackList.get(trains.code);
+                                if (blackTime != null) {
+                                    if (System.currentTimeMillis() - blackTime >= 10_000) {
+                                        blackList.remove(trains.code);
+                                        printLog("解除小黑屋:" + trains.code);
+                                    } else {
+                                        printLog("呆在小黑屋:" + trains.code);
+                                    }
+                                }
+                            }
+                            if (!isProcessing.get()) {
+                                if (trains.location_code != null && trains.location_code.length()
+                                        > LOCATION_CUT_OUT_COUNT) {
+                                    trainsMap.put(trains.location_code.substring(0,
+                                            LOCATION_CUT_OUT_COUNT), trains);
+                                }
+                                checkOrderInfo(trains);
+                            } else {
+                                printLog("wait Processing 2");
+                            }
+                        }
+                        Log.i(TAG, "itemTicketInfo:" + trains.toString());
+                    }
+                });
+            }
+            showRequest(array);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 
     @AnyThread
@@ -726,32 +728,35 @@ public class Hook12306Impl implements IXposedHookLoadPackage {
      * 检查订单，交换location_code
      *
      * @param trains 车次信息
-     * @throws JSONException JSONException
      */
-    private void checkOrderInfo(@NonNull Trains trains) throws JSONException {
+    private void checkOrderInfo(@NonNull Trains trains) {
         if (TextUtils.isEmpty(trains.location_code)) {
             printLog("checkOrderInfo: location_code Empty, message=" + trains.message);
             showPrompt("checkOrderInfo message=" + trains.message);
             return;
         }
-        JSONObject jsonObject = new JSONObject();
-        JSONObject header = new JSONObject();
-        header.put("needLogin", "true");
-        jsonObject.put("headers", header);
-        jsonObject.put("httpGet", false);
-        jsonObject.put("signType", -1);
-        jsonObject.put("operationType", "com.cars.otsmobile.checkOrderInfo");
-        JSONArray requestData = new JSONArray();
-        JSONObject jsonArrayItem = new JSONObject();
-        JSONObject _requestBody = new JSONObject();
-        _requestBody.put("tour_flag", "dc");
-        _requestBody.put("secret_str", trains.location_code);
-        jsonArrayItem.put("_requestBody", _requestBody);
-        requestData.put(jsonArrayItem);
-        jsonObject.put("requestData", requestData);
-        String ret = jsonObject.toString().replaceAll("\\\\/", "/");
-        PageManager.getInstance().runJs("AlipayJSBridge.call('rpcWithBaseDTO',"
-                + ret + ", function(res){AlipayJSBridge.call('checkOrderInfoResult',res)})");
+        try {
+            JSONObject jsonObject = new JSONObject();
+            JSONObject header = new JSONObject();
+            header.put("needLogin", "true");
+            jsonObject.put("headers", header);
+            jsonObject.put("httpGet", false);
+            jsonObject.put("signType", -1);
+            jsonObject.put("operationType", "com.cars.otsmobile.checkOrderInfo");
+            JSONArray requestData = new JSONArray();
+            JSONObject jsonArrayItem = new JSONObject();
+            JSONObject _requestBody = new JSONObject();
+            _requestBody.put("tour_flag", "dc");
+            _requestBody.put("secret_str", trains.location_code);
+            jsonArrayItem.put("_requestBody", _requestBody);
+            requestData.put(jsonArrayItem);
+            jsonObject.put("requestData", requestData);
+            String ret = jsonObject.toString().replaceAll("\\\\/", "/");
+            PageManager.getInstance().runJs("AlipayJSBridge.call('rpcWithBaseDTO',"
+                    + ret + ", function(res){AlipayJSBridge.call('checkOrderInfoResult',res)})");
+        } catch (Exception e) {
+            Log.e(TAG, "checkOrderInfo Error", e);
+        }
     }
 
     /**
@@ -913,38 +918,33 @@ public class Hook12306Impl implements IXposedHookLoadPackage {
 
     /**
      * 显示车票信息
-     *
-     * @param array JSONArray
+     * @param array 车票信息
      */
+    @WorkerThread
     private void showRequest(final @NonNull JSONArray array) {
-        executorService.submit(new Runnable() {
-            @Override
-            public void run() {
-                StringBuilder stringBuilder = new StringBuilder();
-                Calendar calendar = Calendar.getInstance();
-                stringBuilder.append(calendar.get(Calendar.MINUTE)).append(":")
-                        .append(calendar.get(Calendar.SECOND)).append("\n");
-                String startTrainDate = null;
-                for (int i = 0; i < array.length(); i++) {
-                    JSONObject item = array.optJSONObject(i);
-                    Trains trains = Trains.loads(item);
-                    if (OrderConfig.INSTANCE.trains.contains(trains.code)) {
-                        if (startTrainDate == null) {
-                            startTrainDate = trains.start_train_date;
-                        }
-                        stringBuilder.append(trains.code).append(trains.getTicketNumString()).append("\n");
-                    }
+        StringBuilder stringBuilder = new StringBuilder();
+        Calendar calendar = Calendar.getInstance();
+        stringBuilder.append(calendar.get(Calendar.MINUTE)).append(":")
+                .append(calendar.get(Calendar.SECOND)).append("\n");
+        String startTrainDate = null;
+        for (int i = 0; i < array.length(); i++) {
+            JSONObject item = array.optJSONObject(i);
+            Trains trains = Trains.loads(item);
+            if (OrderConfig.INSTANCE.trains.contains(trains.code)) {
+                if (startTrainDate == null) {
+                    startTrainDate = trains.start_train_date;
                 }
-                stringBuilder.append(startTrainDate);
-                if (messageClient != null) {
-                    Message message = Message.obtain(null, EventCode.CODE_SHOW_REQUEST);
-                    Bundle bundle = new Bundle();
-                    bundle.putString("data", stringBuilder.toString());
-                    message.setData(bundle);
-                    messageClient.sendToTarget(message, null);
-                }
+                stringBuilder.append(trains.code).append(trains.getTicketNumString()).append("\n");
             }
-        });
+        }
+        stringBuilder.append(startTrainDate);
+        if (messageClient != null) {
+            Message message = Message.obtain(null, EventCode.CODE_SHOW_REQUEST);
+            Bundle bundle = new Bundle();
+            bundle.putString("data", stringBuilder.toString());
+            message.setData(bundle);
+            messageClient.sendToTarget(message, null);
+        }
     }
 
     /**
@@ -1002,7 +1002,7 @@ public class Hook12306Impl implements IXposedHookLoadPackage {
                     sendUIMessage(EventCode.CODE_TICKET_CONFIG, "配置文件被删除");
                 } else {
                     sendUIMessage(EventCode.CODE_TICKET_CONFIG, "未知异常:" + message.arg1 + ", "
-                    + OrderConfig.INSTANCE.toString());
+                            + OrderConfig.INSTANCE.toString());
                 }
             }
         });
