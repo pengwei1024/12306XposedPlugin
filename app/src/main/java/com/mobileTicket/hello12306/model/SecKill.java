@@ -15,7 +15,7 @@ import java.util.regex.Pattern;
 
 /**
  * 秒杀任务
- * 11点16分起售
+ * SecKill.getInstance().addTask("11点16分起售",null);
  */
 public class SecKill {
 
@@ -24,6 +24,7 @@ public class SecKill {
     private final Pattern pattern = Pattern.compile("^(\\d+)点(\\d+)分起售$");
     private static final String TAG = "SecKill";
     private volatile Pair<Timer, Long> timerPair;
+    private static final long MIN_INTERVAL = 200;
 
     private SecKill() {
     }
@@ -54,7 +55,8 @@ public class SecKill {
             Matcher matcher = pattern.matcher(message);
             if (matcher.find()) {
                 Calendar calendar = Calendar.getInstance();
-                calendar.set(Calendar.HOUR, Integer.parseInt(matcher.group(1)));
+                calendar.set(Calendar.DAY_OF_MONTH, calendar.get(Calendar.DAY_OF_MONTH));
+                calendar.set(Calendar.HOUR_OF_DAY, Integer.parseInt(matcher.group(1)));
                 calendar.set(Calendar.MINUTE, Integer.parseInt(matcher.group(2)));
                 calendar.set(Calendar.SECOND, 0);
                 calendar.set(Calendar.MILLISECOND, 0);
@@ -62,6 +64,7 @@ public class SecKill {
                 if (currentTime <= System.currentTimeMillis()) {
                     return;
                 }
+                Log.i(TAG, "addTask current=" + System.currentTimeMillis() + ", task=" + currentTime);
                 currentTask = new SecKillTask(message, currentTime, callback);
                 createTimer();
             }
@@ -85,7 +88,9 @@ public class SecKill {
                 createTimer();
                 if (currentTask != null) {
                     long nowTime = System.currentTimeMillis();
-                    if (currentTask.killTime - nowTime < 1000) {
+                    long interval = currentTask.killTime - nowTime;
+                    if ((interval < 1000 && interval > 1000 - MIN_INTERVAL)
+                            || (interval < MIN_INTERVAL && interval > 0)) {
                         currentTask.run();
                     }
                 }
@@ -117,7 +122,7 @@ public class SecKill {
         } else if (interval > 5 * 1000) {
             createTimeTask(3000);
         } else {
-            createTimeTask(200);
+            createTimeTask(MIN_INTERVAL);
         }
     }
 
