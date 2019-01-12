@@ -31,6 +31,7 @@ import com.mobileTicket.hello12306.model.OrderConfig;
 import com.mobileTicket.hello12306.model.Page;
 import com.mobileTicket.hello12306.model.Passenger;
 import com.mobileTicket.hello12306.model.SeatType;
+import com.mobileTicket.hello12306.model.SecKill;
 import com.mobileTicket.hello12306.model.Trains;
 import com.mobileTicket.hello12306.util.MessageClient;
 import com.mobileTicket.hello12306.util.MessageUtil;
@@ -489,6 +490,9 @@ public class Hook12306Impl implements IXposedHookLoadPackage {
                             trainListResponse = null;
                         }
                         break;
+                    case "secKillQuery":
+                        printLog("secKillQuery: 秒杀收到票信息 " + reqParams.toString());
+                        break;
                     default:
                         break;
                 }
@@ -602,6 +606,7 @@ public class Hook12306Impl implements IXposedHookLoadPackage {
                                         printLog("解除小黑屋:" + trains.code);
                                     } else {
                                         printLog("呆在小黑屋:" + trains.code);
+                                        return;
                                     }
                                 }
                             }
@@ -615,6 +620,7 @@ public class Hook12306Impl implements IXposedHookLoadPackage {
                             } else {
                                 printLog("wait Processing 2");
                             }
+                            printLog(trains.toString() + ", JSON=" + item.toString());
                         }
                         Log.i(TAG, "itemTicketInfo:" + trains.toString());
                     }
@@ -672,10 +678,10 @@ public class Hook12306Impl implements IXposedHookLoadPackage {
             return;
         }
         if (!confirmPassengerLock.compareAndSet(false, true)) {
-            printLog("wait confirmPassengerLock");
+            printLog("wait confirmPassengerLock " + train.code);
             return;
         } else {
-            printLog("get confirmPassengerLock && confirmPassengerInfoSingle");
+            printLog("get confirmPassengerLock && confirmPassengerInfoSingle " + train.code);
         }
         JSONObject jsonObject = new JSONObject();
         JSONObject header = new JSONObject();
@@ -733,6 +739,15 @@ public class Hook12306Impl implements IXposedHookLoadPackage {
         if (TextUtils.isEmpty(trains.location_code)) {
             printLog("checkOrderInfo: location_code Empty, message=" + trains.message);
             showPrompt("checkOrderInfo message=" + trains.message);
+            SecKill.getInstance().addTask(trains.message, new Runnable() {
+                @Override
+                public void run() {
+                    printLog("秒杀请求!!");
+                    queryLeftTicketZ(OrderConfig.INSTANCE.trainDate.get(0),
+                            OrderConfig.INSTANCE.stationInfo.first,
+                            OrderConfig.INSTANCE.stationInfo.second, "secKillQuery");
+                }
+            });
             return;
         }
         try {
