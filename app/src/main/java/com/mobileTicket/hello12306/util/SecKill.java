@@ -88,10 +88,10 @@ public class SecKill {
             @Override
             public void run() {
                 if (currentTask != null) {
-                    // 700 - 900ms 触发三次
+                    // 500ms - 900ms 触发4次
                     int interval = (int) (currentTask.killTime - System.currentTimeMillis());
                     int millisecond = interval / 100;
-                    if (millisecond>= 0 && millisecond <= 2) {
+                    if (millisecond>= 1 && millisecond <= 4) {
                         currentTask.run();
                     }
                 }
@@ -152,7 +152,7 @@ public class SecKill {
             this.message = message;
             this.killTime = killTime;
             this.callback = callback;
-            this.runCount = new AtomicInteger(3);
+            this.runCount = new AtomicInteger(4);
         }
 
         @Override
