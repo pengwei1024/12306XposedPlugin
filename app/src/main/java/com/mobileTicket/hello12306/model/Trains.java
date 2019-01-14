@@ -25,13 +25,15 @@ public class Trains {
     public String from_station_telecode;
     public String to_station_telecode;
     public String start_train_date;
-    private boolean isSelected;
     public String message;
     private HashMap<SeatType, Integer> ticketInfo = new HashMap<>();
+    private String dfpStr;
+    public JSONObject targetJson;
 
     @WorkerThread
     public static Trains loads(JSONObject item) {
         Trains trains = new Trains();
+        trains.targetJson = item;
         trains.code = item.optString("station_train_code");
         trains.fromStation = item.optString("from_station_name");
         trains.toStation = item.optString("to_station_name");
@@ -97,14 +99,6 @@ public class Trains {
                 '}';
     }
 
-    public boolean isSelected() {
-        return isSelected;
-    }
-
-    public void setSelected(boolean selected) {
-        isSelected = selected;
-    }
-
     public int getTicketNum(SeatType seatType) {
         Integer count = getTicketInfo().get(seatType);
         if (count != null) {
@@ -128,5 +122,13 @@ public class Trains {
 
     private HashMap<SeatType, Integer> getTicketInfo() {
         return ticketInfo;
+    }
+
+    public String getDfpStr() {
+        return dfpStr;
+    }
+
+    public void setDfpStr(String dfpStr) {
+        this.dfpStr = dfpStr;
     }
 }

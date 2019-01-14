@@ -1,4 +1,4 @@
-package com.mobileTicket.hello12306.model;
+package com.mobileTicket.hello12306.util;
 
 import android.support.annotation.AnyThread;
 import android.support.annotation.NonNull;
@@ -16,12 +16,13 @@ import java.util.regex.Pattern;
 /**
  * 秒杀任务
  * SecKill.getInstance().addTask("11点16分起售",null);
+ * SecKill.getInstance().addTask("15点起售",null);
  */
 public class SecKill {
 
     private volatile static SecKill singleton;
     private volatile SecKillTask currentTask;
-    private final Pattern pattern = Pattern.compile("^(\\d+)点(\\d+)分起售$");
+    private final Pattern pattern = Pattern.compile("^(\\d+)点(\\d*)分*起售$");
     private static final String TAG = "SecKill";
     private volatile Pair<Timer, Long> timerPair;
     private static final long MIN_INTERVAL = 200;
@@ -56,8 +57,9 @@ public class SecKill {
             if (matcher.find()) {
                 Calendar calendar = Calendar.getInstance();
                 calendar.set(Calendar.DAY_OF_MONTH, calendar.get(Calendar.DAY_OF_MONTH));
-                calendar.set(Calendar.HOUR_OF_DAY, Integer.parseInt(matcher.group(1)));
-                calendar.set(Calendar.MINUTE, Integer.parseInt(matcher.group(2)));
+                calendar.set(Calendar.HOUR_OF_DAY, Utils.parseInt(matcher.group(1)));
+                int minute = Utils.parseInt(matcher.group(2));
+                calendar.set(Calendar.MINUTE, minute);
                 calendar.set(Calendar.SECOND, 0);
                 calendar.set(Calendar.MILLISECOND, 0);
                 long currentTime = calendar.getTimeInMillis();
@@ -89,7 +91,8 @@ public class SecKill {
                 if (currentTask != null) {
                     long nowTime = System.currentTimeMillis();
                     long interval = currentTask.killTime - nowTime;
-                    if ((interval < 1000 && interval > 1000 - MIN_INTERVAL)
+                    int limit = 700;
+                    if ((interval < limit && interval > limit - MIN_INTERVAL)
                             || (interval < MIN_INTERVAL && interval > 0)) {
                         currentTask.run();
                     }

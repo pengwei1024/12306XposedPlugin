@@ -28,6 +28,9 @@ public class Utils {
     }
 
     public static int parseInt(String value) {
+        if (value == null || value.length() == 0) {
+            return 0;
+        }
         try {
             return Integer.parseInt(value);
         } catch (NumberFormatException e) {

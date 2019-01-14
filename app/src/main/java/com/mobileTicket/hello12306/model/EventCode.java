@@ -20,6 +20,8 @@ public interface EventCode {
     int CODE_TASK_CHANGE = 0xC;
     // 选择车次
     int CODE_SELECT_TRAIN_LIST = 0xD;
+    // 抢票完成
+    int CODE_TICKET_SUCCESS = 0xE;
 
     String KEY_TICKET_CACHE = "KEY_TICKET_CACHE";
     // 选择的任务ID, 默认-1

@@ -23,6 +23,7 @@ import android.widget.TextView;
 import com.mobileTicket.hello12306.R;
 import com.mobileTicket.hello12306.dao.TaskDao;
 import com.mobileTicket.hello12306.model.EventCode;
+import com.mobileTicket.hello12306.ui.MainActivity;
 import com.mobileTicket.hello12306.util.MessageClient;
 import com.tencent.mmkv.MMKV;
 
@@ -45,6 +46,7 @@ public class ShareService extends Service implements MessageClient.QueryListener
     private TextView requestText;
     private TextView tipText;
     private TextView configInfo;
+    private CheckBox startCheckbox;
     private boolean isStarted = false;
     private MMKV ticketKV = MMKV.mmkvWithID(EventCode.KEY_TICKET_CACHE, MMKV.MULTI_PROCESS_MODE);
 
@@ -104,6 +106,11 @@ public class ShareService extends Service implements MessageClient.QueryListener
                 if (tipText != null && msg.getData() != null) {
                     String data = msg.getData().getString("data");
                     configInfo.setText(String.valueOf(data));
+                }
+                break;
+            case EventCode.CODE_TICKET_SUCCESS:
+                if (startCheckbox != null) {
+                    startCheckbox.setChecked(false);
                 }
                 break;
             case EventCode.CODE_QUERY_TASK:
@@ -173,9 +180,15 @@ public class ShareService extends Service implements MessageClient.QueryListener
         requestText = content.findViewById(R.id.requestText);
         configInfo = content.findViewById(R.id.config_info);
         tipText = content.findViewById(R.id.tipText);
-        CheckBox startCheckbox = content.findViewById(R.id.startCheckbox);
+        startCheckbox = content.findViewById(R.id.startCheckbox);
         startCheckbox.setChecked(isStarted);
         windowManager.addView(content, params);
+        content.findViewById(R.id.btn_setting).setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                startActivity(new Intent(ShareService.this, MainActivity.class));
+            }
+        });
         // 主动计算出当前View的宽高信息.
         content.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED);
         // 用于检测状态栏高度.

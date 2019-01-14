@@ -31,7 +31,7 @@ import com.mobileTicket.hello12306.model.OrderConfig;
 import com.mobileTicket.hello12306.model.Page;
 import com.mobileTicket.hello12306.model.Passenger;
 import com.mobileTicket.hello12306.model.SeatType;
-import com.mobileTicket.hello12306.model.SecKill;
+import com.mobileTicket.hello12306.util.SecKill;
 import com.mobileTicket.hello12306.model.Trains;
 import com.mobileTicket.hello12306.util.MessageClient;
 import com.mobileTicket.hello12306.util.MessageUtil;
@@ -82,6 +82,7 @@ public class Hook12306Impl implements IXposedHookLoadPackage {
     private AtomicBoolean isProcessing = new AtomicBoolean(false);
     private AtomicInteger fetchCount = new AtomicInteger(0);
     private AtomicBoolean confirmPassengerLock = new AtomicBoolean(false);
+    private AtomicBoolean checkOrderLock = new AtomicBoolean(false);
     private volatile MessageClient.Response passengerResponse;
     private volatile MessageClient.Response trainListResponse;
     // 当前正在提交的车次
@@ -103,11 +104,7 @@ public class Hook12306Impl implements IXposedHookLoadPackage {
             public void onReceive(Context context, Intent intent) {
                 int min = Calendar.getInstance().get(Calendar.MINUTE);
                 Log.i(TAG, "timeTick minute=" + min + ", time=" + System.currentTimeMillis());
-                if (min == 0 || min == 30) {
-                    queryLeftTicketZ(OrderConfig.INSTANCE.trainDate.get(0),
-                            OrderConfig.INSTANCE.stationInfo.first,
-                            OrderConfig.INSTANCE.stationInfo.second, null);
-                } else if (min == 45 || min == 15) {
+                if (min == 45 || min == 15) {
                     PageManager.getInstance().runJs("javascript:var menu=document.getElementsByClassName" +
                             "('vmc-menu-item');if(menu.length > 0){menu[0].click()}");
                 }
@@ -143,6 +140,7 @@ public class Hook12306Impl implements IXposedHookLoadPackage {
                             case EventCode.CODE_TASK_CHANGE:
                                 isProcessing.compareAndSet(true, false);
                                 confirmPassengerLock.set(false);
+                                checkOrderLock.set(false);
                                 configQuery();
                                 break;
                             case EventCode.CODE_SWITCH_CHANGE:
@@ -219,19 +217,22 @@ public class Hook12306Impl implements IXposedHookLoadPackage {
                 int sleepTime = new Random().nextInt(1200);
                 Log.d(TAG, "count=" + fetchCount.incrementAndGet() + ", sleep=" + sleepTime);
                 try {
+                    if (checkOrderLock.get() || isProcessing.get()) {
+                        return;
+                    }
                     if (isStarted.get()) {
+                        Thread.sleep(sleepTime);
                         int length = OrderConfig.INSTANCE.trainDate.size();
                         int select = fetchCount.get() % length == 0 ? length - 1 : 0;
                         queryLeftTicketZ(OrderConfig.INSTANCE.trainDate.get(select),
                                 OrderConfig.INSTANCE.stationInfo.first,
                                 OrderConfig.INSTANCE.stationInfo.second, null);
                     }
-                    Thread.sleep(sleepTime);
                 } catch (Exception e) {
                     e.printStackTrace();
                 }
             }
-        }, 5000, 2000);
+        }, 5000, 1200);
         // 日志输出
         XposedBridge.log(TAG + " hook " + packageName);
         final Class<?> logClass = loadPackageParam.classLoader.loadClass("com.alipay.mobile.nebula.util.H5Log");
@@ -420,6 +421,7 @@ public class Hook12306Impl implements IXposedHookLoadPackage {
                         showPrompt(reqParams.toString());
                         break;
                     case "checkOrderInfoResult":
+                        checkOrderLock.set(false);
                         String location = reqParams.optString("location_code");
                         printLog("checkOrderInfoResult: " + reqParams.toString()
                                 + ", isProcessing=" + isProcessing.get() + ", location=" + location);
@@ -491,7 +493,7 @@ public class Hook12306Impl implements IXposedHookLoadPackage {
                         }
                         break;
                     case "secKillQuery":
-                        printLog("secKillQuery: 秒杀收到票信息 " + reqParams.toString());
+                        printLog("secKillQuery 秒杀收到票信息");
                         break;
                     default:
                         break;
@@ -618,7 +620,7 @@ public class Hook12306Impl implements IXposedHookLoadPackage {
                                 }
                                 checkOrderInfo(trains);
                             } else {
-                                printLog("wait Processing 2");
+                                printLog("wait Processing 2 " + trains.code);
                             }
                             printLog(trains.toString() + ", JSON=" + item.toString());
                         }
@@ -749,6 +751,12 @@ public class Hook12306Impl implements IXposedHookLoadPackage {
                 }
             });
             return;
+        }
+        if (!checkOrderLock.compareAndSet(false, true)) {
+            printLog("wait checkOrderLock " + trains.code);
+            return;
+        } else {
+            printLog("get checkOrderLock " + trains.code);
         }
         try {
             JSONObject jsonObject = new JSONObject();
@@ -933,6 +941,7 @@ public class Hook12306Impl implements IXposedHookLoadPackage {
 
     /**
      * 显示车票信息
+     *
      * @param array 车票信息
      */
     @WorkerThread
