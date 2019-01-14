@@ -25,7 +25,7 @@ public class SecKill {
     private final Pattern pattern = Pattern.compile("^(\\d+)点(\\d*)分*起售$");
     private static final String TAG = "SecKill";
     private volatile Pair<Timer, Long> timerPair;
-    private static final long MIN_INTERVAL = 200;
+    private static final long MIN_INTERVAL = 100;
 
     private SecKill() {
     }
@@ -57,8 +57,8 @@ public class SecKill {
             if (matcher.find()) {
                 Calendar calendar = Calendar.getInstance();
                 calendar.set(Calendar.DAY_OF_MONTH, calendar.get(Calendar.DAY_OF_MONTH));
-                calendar.set(Calendar.HOUR_OF_DAY, Utils.parseInt(matcher.group(1)));
-                int minute = Utils.parseInt(matcher.group(2));
+                calendar.set(Calendar.HOUR_OF_DAY, parseInt(matcher.group(1)));
+                int minute = parseInt(matcher.group(2));
                 calendar.set(Calendar.MINUTE, minute);
                 calendar.set(Calendar.SECOND, 0);
                 calendar.set(Calendar.MILLISECOND, 0);
@@ -87,16 +87,15 @@ public class SecKill {
         timer.schedule(new TimerTask() {
             @Override
             public void run() {
-                createTimer();
                 if (currentTask != null) {
-                    long nowTime = System.currentTimeMillis();
-                    long interval = currentTask.killTime - nowTime;
-                    int limit = 700;
-                    if ((interval < limit && interval > limit - MIN_INTERVAL)
-                            || (interval < MIN_INTERVAL && interval > 0)) {
+                    // 700 - 900ms 触发三次
+                    int interval = (int) (currentTask.killTime - System.currentTimeMillis());
+                    int millisecond = interval / 100;
+                    if (millisecond>= 0 && millisecond <= 2) {
                         currentTask.run();
                     }
                 }
+                createTimer();
             }
         }, 0, waitTime);
         Log.i(TAG, "Timer:" + waitTime);
@@ -129,6 +128,17 @@ public class SecKill {
         }
     }
 
+    private int parseInt(String value) {
+        if (value == null || value.length() == 0) {
+            return 0;
+        }
+        try {
+            return Integer.parseInt(value);
+        } catch (NumberFormatException e) {
+            e.printStackTrace();
+        }
+        return 0;
+    }
 
     private static class SecKillTask {
         @NonNull
@@ -142,7 +152,7 @@ public class SecKill {
             this.message = message;
             this.killTime = killTime;
             this.callback = callback;
-            this.runCount = new AtomicInteger(2);
+            this.runCount = new AtomicInteger(3);
         }
 
         @Override
