@@ -67,6 +67,9 @@ public class SecKill {
                     return;
                 }
                 Log.i(TAG, "addTask current=" + System.currentTimeMillis() + ", task=" + currentTime);
+                if (timerPair != null && timerPair.first != null) {
+                    timerPair.first.cancel();
+                }
                 currentTask = new SecKillTask(message, currentTime, callback);
                 createTimer();
             }
