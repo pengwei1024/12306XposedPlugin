@@ -96,6 +96,7 @@ public class Trains {
                 ", start_train_date='" + start_train_date + '\'' +
                 ", from_station_telecode='" + from_station_telecode + '\'' +
                 ", to_station_telecode='" + to_station_telecode + '\'' +
+                ", message='" + message + '\'' +
                 '}';
     }
 

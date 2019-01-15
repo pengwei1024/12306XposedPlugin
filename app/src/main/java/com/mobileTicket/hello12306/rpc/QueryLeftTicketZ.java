@@ -6,6 +6,7 @@ import android.support.annotation.Nullable;
 import com.mobileTicket.hello12306.model.ActionRunnable;
 import com.mobileTicket.hello12306.model.OrderConfig;
 import com.mobileTicket.hello12306.model.Trains;
+import com.mobileTicket.hello12306.util.LogUtil;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -82,6 +83,7 @@ public class QueryLeftTicketZ extends RpcRequest<Trains> {
                         if (blackTime != null) {
                             if (System.currentTimeMillis() - blackTime >= 10_000) {
                                 blackList.remove(trains.code);
+                                LogUtil.print("移出小黑屋:" + trains.code);
                             } else {
                                 continue;
                             }
@@ -102,6 +104,7 @@ public class QueryLeftTicketZ extends RpcRequest<Trains> {
     }
 
     public static void addBlackList(@NonNull String code) {
+        LogUtil.print("加入小黑屋:" + code);
         blackList.put(code, System.currentTimeMillis());
     }
 }
