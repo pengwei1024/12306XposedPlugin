@@ -15,8 +15,20 @@ android {
             }
         }
     }
+    signingConfigs {
+        config {
+            keyAlias 'hiplugin'
+            keyPassword 'hiplugindebug'
+            storeFile file('../hiplugindebug.keystore')
+            storePassword 'hiplugindebug'
+        }
+    }
     buildTypes {
+        debug {
+            signingConfig signingConfigs.config
+        }
         release {
+            signingConfig signingConfigs.config
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
@@ -27,6 +39,17 @@ android {
         }
     }
     sourceSets { main { assets.srcDirs = ['src/main/assets', 'src/main/assets/'] } }
+    applicationVariants.all { variant ->
+        variant.getPackageApplication().outputDirectory = new File(project.rootDir.absolutePath + "/apk")
+        variant.getPackageApplication().outputScope.apkDatas.forEach { apkData ->
+            apkData.outputFileName = android.defaultConfig.applicationId + ".apk"
+        }
+    }
+    lintOptions {
+        checkReleaseBuilds false
+        abortOnError false
+    }
+
 }
 
 dependencies {
