@@ -6,8 +6,8 @@ android {
         applicationId "com.mobileTicket.hello12306"
         minSdkVersion 21
         targetSdkVersion 22
-        versionCode 2
-        versionName "1.1"
+        versionCode 3
+        versionName "1.1.1"
         testInstrumentationRunner "android.support.test.runner.AndroidJUnitRunner"
         externalNativeBuild {
             cmake {
@@ -40,9 +40,11 @@ android {
     }
     sourceSets { main { assets.srcDirs = ['src/main/assets', 'src/main/assets/'] } }
     applicationVariants.all { variant ->
-        variant.getPackageApplication().outputDirectory = new File(project.rootDir.absolutePath + "/apk")
-        variant.getPackageApplication().outputScope.apkDatas.forEach { apkData ->
-            apkData.outputFileName = android.defaultConfig.applicationId + ".apk"
+        if (variant.buildType.name != "debug") {
+            variant.getPackageApplication().outputDirectory = new File(project.rootDir.absolutePath + "/apk")
+            variant.getPackageApplication().outputScope.apkDatas.forEach { apkData ->
+                apkData.outputFileName = android.defaultConfig.applicationId + ".apk"
+            }
         }
     }
     lintOptions {
