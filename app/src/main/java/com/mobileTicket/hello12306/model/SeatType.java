@@ -1,6 +1,7 @@
 package com.mobileTicket.hello12306.model;
 
 import android.support.annotation.Nullable;
+import android.text.TextUtils;
 
 public enum SeatType {
     YZ("硬座", "1".charAt(0)),
@@ -38,5 +39,14 @@ public enum SeatType {
             }
         }
         return SeatType.YW;
+    }
+
+    public static String getSeatTypeByName(String name) {
+        for (SeatType seatType : SeatType.values()) {
+            if (TextUtils.equals(name, seatType.name)) {
+                return String.valueOf(seatType.getSign());
+            }
+        }
+        return String.valueOf(SeatType.YW.sign);
     }
 }

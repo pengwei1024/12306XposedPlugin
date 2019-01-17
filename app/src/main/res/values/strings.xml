@@ -1,8 +1,22 @@
 <resources>
     <string name="app_name">hello12306</string>
-    <string name="menu_reload">新增</string>
-    <string name="menu_clean">刷新</string>
+    <string name="menu_reload">新增任务</string>
+    <string name="menu_clean">刷新任务</string>
     <string name="menu_close_music">关闭音乐</string>
     <string name="start_ticket">是否开始抢票?</string>
     <string name="auto_login">自动登录</string>
+    <string name="title_activity_calendar">选择日期</string>
+    <string name="menu_sure">确定</string>
+
+    <string-array name="seat_types">
+        <item>硬卧</item>
+        <item>二等</item>
+        <item>硬座</item>
+        <item>软座</item>
+        <item>软卧</item>
+        <item>高软</item>
+        <item>一等</item>
+        <item>特等</item>
+        <item>无座</item>
+    </string-array>
 </resources>

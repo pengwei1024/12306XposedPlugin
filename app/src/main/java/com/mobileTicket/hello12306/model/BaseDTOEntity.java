@@ -18,11 +18,12 @@ public class BaseDTOEntity {
 
     public BaseDTOEntity(ClassLoader classLoader, ContextWrapper contextWrapper) {
         try {
-            Class<?> TicketNetRequest = classLoader.loadClass("com.MobileTicket.common.rpc.TicketNetRequest");
-            BaseDTO = classLoader.loadClass("com.MobileTicket.common.rpc.model.BaseDTO");
+            Class<?> TicketNetRequest = XposedHelpers.findClass("com.MobileTicket.common.rpc.TicketNetRequest",
+                    classLoader);
+            BaseDTO = XposedHelpers.findClass("com.MobileTicket.common.rpc.model.BaseDTO", classLoader);
             targetObject = XposedHelpers.callStaticMethod(TicketNetRequest, "getBaseDTO",
                     new Class<?>[]{ContextWrapper.class}, contextWrapper);
-        } catch (ClassNotFoundException e) {
+        } catch (Exception e) {
             e.printStackTrace();
         }
     }

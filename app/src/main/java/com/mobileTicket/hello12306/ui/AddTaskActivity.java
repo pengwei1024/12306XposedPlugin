@@ -1,9 +1,9 @@
 package com.mobileTicket.hello12306.ui;
 
 import android.app.AlertDialog;
-import android.app.DatePickerDialog;
 import android.app.ProgressDialog;
 import android.content.DialogInterface;
+import android.content.Intent;
 import android.os.Bundle;
 import android.os.Message;
 import android.support.annotation.NonNull;
@@ -17,8 +17,8 @@ import android.view.MenuItem;
 import android.view.View;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
-import android.widget.DatePicker;
 import android.widget.EditText;
+import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -45,12 +45,10 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Calendar;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Locale;
 import java.util.Set;
 import java.util.Timer;
 import java.util.TimerTask;
@@ -77,6 +75,7 @@ public class AddTaskActivity extends AppCompatActivity implements MessageClient.
     private EditText uidText;
     private EditText pwdText;
     private int targetId = -1;
+    private Spinner spinner;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -91,35 +90,21 @@ public class AddTaskActivity extends AppCompatActivity implements MessageClient.
         startStation = findViewById(R.id.start_station);
         endStation = findViewById(R.id.end_station);
         showStationPrompt();
-        Button selectTime = findViewById(R.id.select_time);
+        View selectTime = findViewById(R.id.select_time);
         selectTimeText = findViewById(R.id.select_time_text);
         selectUserText = findViewById(R.id.select_user_text);
         trainListText = findViewById(R.id.train_list);
         uidText = findViewById(R.id.uid);
+        spinner = findViewById(R.id.select_seats);
         pwdText = findViewById(R.id.pwd);
         selectTime.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                Calendar calendar = Calendar.getInstance();
-                new DatePickerDialog(AddTaskActivity.this,
-                        new DatePickerDialog.OnDateSetListener() {
-                            @Override
-                            public void onDateSet(DatePicker view, int year,
-                                                  int monthOfYear, int dayOfMonth) {
-                                String text = String.format(Locale.CHINA, "%d%s%s", year,
-                                        doubleChar(monthOfYear + 1), doubleChar(dayOfMonth));
-                                if (selectTimeText.getText().length() == 0) {
-                                    selectTimeText.setText(text);
-                                } else {
-                                    selectTimeText.append(";");
-                                    selectTimeText.append(text);
-                                }
-                            }
-                        }
-                        , calendar.get(Calendar.YEAR), calendar.get(Calendar.MONTH), calendar.get(Calendar.DAY_OF_MONTH)).show();
+                startActivityForResult(new Intent(AddTaskActivity.this,
+                        CalendarActivity.class), 0);
             }
         });
-        Button selectUser = findViewById(R.id.select_user_btn);
+        View selectUser = findViewById(R.id.select_user_btn);
         selectUser.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -197,7 +182,7 @@ public class AddTaskActivity extends AppCompatActivity implements MessageClient.
                 if (!checkNotNull(startStation, "起始站不能为空")
                         || !checkNotNull(endStation, "终点站不能为空")
                         || !checkNotNull(selectTimeText, "发车时间不能为空")
-                        ) {
+                ) {
                     return;
                 }
                 String startStationCode = stationCache.optString(startStation.getText().toString());
@@ -237,54 +222,62 @@ public class AddTaskActivity extends AppCompatActivity implements MessageClient.
                 message.setData(bundle);
                 messageClient.sendToTarget(message,
                         new MessageClient.Callback() {
-                    @Override
-                    public void onResponse(Message message) {
-                        timer.cancel();
-                        hideProgress();
-                        String data = message.getData().getString("data");
-                        try {
-                            final List<String> trainList = new ArrayList<>();
-                            List<String> trainShowList = new ArrayList<>();
-                            JSONObject jsonObject = new JSONObject(data);
-                            JSONArray array = jsonObject.optJSONArray("ticketResult");
-                            for (int i=0;i<array.length();i++) {
-                                JSONObject item = array.optJSONObject(i);
-                                Trains trains = Trains.loads(item);
-                                trainList.add(trains.code);
-                                trainShowList.add(trains.code + " (" + trains.startTime + ")");
-                            }
-                            boolean[] booleans = new boolean[trainShowList.size()];
-                            Arrays.fill(booleans, false);
-                            final Set<Integer> selectedSet = new HashSet<>();
-                            new AlertDialog.Builder(AddTaskActivity.this)
-                                    .setTitle("请选择车次")
-                                    .setMultiChoiceItems(trainShowList.toArray(new String[0]),
-                                            booleans, new DialogInterface.OnMultiChoiceClickListener() {
+                            @Override
+                            public void onResponse(Message message) {
+                                timer.cancel();
+                                hideProgress();
+                                String data = message.getData().getString("data");
+                                try {
+                                    final List<String> trainList = new ArrayList<>();
+                                    List<String> trainShowList = new ArrayList<>();
+                                    JSONObject jsonObject = new JSONObject(data);
+                                    JSONArray array = jsonObject.optJSONArray("ticketResult");
+                                    for (int i = 0; i < array.length(); i++) {
+                                        JSONObject item = array.optJSONObject(i);
+                                        Trains trains = Trains.loads(item);
+                                        trainList.add(trains.code);
+                                        trainShowList.add(trains.code + " (" + trains.startTime + ")");
+                                    }
+                                    boolean[] booleans = new boolean[trainShowList.size()];
+                                    Arrays.fill(booleans, false);
+                                    final Set<Integer> selectedSet = new HashSet<>();
+                                    new AlertDialog.Builder(AddTaskActivity.this)
+                                            .setTitle("请选择车次")
+                                            .setMultiChoiceItems(trainShowList.toArray(new String[0]),
+                                                    booleans, new DialogInterface.OnMultiChoiceClickListener() {
+                                                        @Override
+                                                        public void onClick(DialogInterface dialog, int which, boolean isChecked) {
+                                                            if (isChecked) {
+                                                                selectedSet.add(which);
+                                                            } else {
+                                                                selectedSet.remove(which);
+                                                            }
+                                                        }
+                                                    })
+                                            .setPositiveButton("确定", new DialogInterface.OnClickListener() {
                                                 @Override
-                                                public void onClick(DialogInterface dialog, int which, boolean isChecked) {
-                                                    if (isChecked) {
-                                                        selectedSet.add(which);
-                                                    } else {
-                                                        selectedSet.remove(which);
+                                                public void onClick(DialogInterface dialog, int which) {
+                                                    List<String> selectedList = new ArrayList<>();
+                                                    for (int i : selectedSet) {
+                                                        selectedList.add(trainList.get(i));
                                                     }
+                                                    trainListText.setText(Utils.listToString(selectedList));
                                                 }
                                             })
-                                    .setPositiveButton("确定", new DialogInterface.OnClickListener() {
-                                        @Override
-                                        public void onClick(DialogInterface dialog, int which) {
-                                            List<String> selectedList = new ArrayList<>();
-                                            for (int i : selectedSet) {
-                                                selectedList.add(trainList.get(i));
-                                            }
-                                            trainListText.setText(Utils.listToString(selectedList));
-                                        }
-                                    })
-                                    .show();
-                        } catch (Exception e) {
-                            e.printStackTrace();
-                        }
-                    }
-                });
+                                            .show();
+                                } catch (Exception e) {
+                                    e.printStackTrace();
+                                }
+                            }
+                        });
+            }
+        });
+        findViewById(R.id.btn_transform).setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                String fromText = startStation.getText().toString();
+                startStation.setText(endStation.getText());
+                endStation.setText(fromText);
             }
         });
         // 提交
@@ -301,7 +294,7 @@ public class AddTaskActivity extends AppCompatActivity implements MessageClient.
                         || !checkNotNull(selectUserText, "用户信息不能为空")
                         || !checkNotNull(selectTimeText, "日期不能为空")
                         || !checkNotNull(trainListText, "车次不能为空")
-                        ) {
+                ) {
                     return;
                 }
                 String startStationCode = stationCache.optString(startStation.getText().toString());
@@ -343,6 +336,8 @@ public class AddTaskActivity extends AppCompatActivity implements MessageClient.
                 taskDao.setType(String.valueOf(SeatType.YW.getSign()));
                 taskDao.setUid(uidText.getText().toString());
                 taskDao.setPwd(pwdText.getText().toString());
+                String[] seatArray = getResources().getStringArray(R.array.seat_types);
+                taskDao.setType(SeatType.getSeatTypeByName(seatArray[spinner.getSelectedItemPosition()]));
                 SaveCallback callback = new SaveCallback() {
                     @Override
                     public void onFinish(final boolean success) {
@@ -488,6 +483,19 @@ public class AddTaskActivity extends AppCompatActivity implements MessageClient.
             finish();
         }
         return super.onOptionsItemSelected(item);
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
+        switch (requestCode) {
+            case 0:
+                if (data != null) {
+                    List<String> selectDate = data.getStringArrayListExtra("data");
+                    selectTimeText.setText(Utils.listToString(selectDate));
+                }
+                break;
+        }
+        super.onActivityResult(requestCode, resultCode, data);
     }
 
     @Override
