@@ -1,1 +1,1 @@
-include ':app', ':thirdlib'
+include ':app'
