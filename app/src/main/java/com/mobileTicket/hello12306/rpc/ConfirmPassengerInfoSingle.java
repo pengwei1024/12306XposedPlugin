@@ -38,7 +38,7 @@ public class ConfirmPassengerInfoSingle extends RpcRequest<RequestResult> {
         _requestBody.put("from_station", train.from_station_telecode);
         _requestBody.put("to_station", train.to_station_telecode);
         _requestBody.put("train_date", train.train_date);
-        _requestBody.put("seat_type_codes", OrderConfig.INSTANCE.seat_type_codes());
+        _requestBody.put("seat_type_codes", OrderConfig.INSTANCE.seat_type_codes(train));
         _requestBody.put("ticket_types", OrderConfig.INSTANCE.ticket_types());
         _requestBody.put("ticket_type_order_num", String.valueOf(OrderConfig.INSTANCE.passenger.length));
         _requestBody.put("passenger_id_types", OrderConfig.INSTANCE.passenger_id_types());

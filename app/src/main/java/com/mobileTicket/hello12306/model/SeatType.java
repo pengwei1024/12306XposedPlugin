@@ -41,12 +41,16 @@ public enum SeatType {
         return SeatType.YW;
     }
 
-    public static String getSeatTypeByName(String name) {
+    public static String getSeatSignByName(String name) {
+        return String.valueOf(getSeatTypeByName(name).sign);
+    }
+
+    public static SeatType getSeatTypeByName(String name) {
         for (SeatType seatType : SeatType.values()) {
             if (TextUtils.equals(name, seatType.name)) {
-                return String.valueOf(seatType.getSign());
+                return seatType;
             }
         }
-        return String.valueOf(SeatType.YW.sign);
+        return SeatType.YW;
     }
 }

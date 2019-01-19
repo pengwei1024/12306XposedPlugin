@@ -16,9 +16,7 @@ import android.util.Log;
 import android.view.MenuItem;
 import android.view.View;
 import android.widget.ArrayAdapter;
-import android.widget.Button;
 import android.widget.EditText;
-import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -74,8 +72,9 @@ public class AddTaskActivity extends AppCompatActivity implements MessageClient.
     private EditText trainListText;
     private EditText uidText;
     private EditText pwdText;
+    private EditText seatTypeText;
+    private String[] seatArray;
     private int targetId = -1;
-    private Spinner spinner;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -84,6 +83,7 @@ public class AddTaskActivity extends AppCompatActivity implements MessageClient.
         if (actionBar != null) {
             actionBar.setDisplayHomeAsUpEnabled(true);
         }
+        seatArray = getResources().getStringArray(R.array.seat_types);
         targetId = getIntent().getIntExtra(KEY_TARGET, -1);
         messageClient = new MessageClient(this, this);
         setContentView(R.layout.activity_add_task);
@@ -95,8 +95,8 @@ public class AddTaskActivity extends AppCompatActivity implements MessageClient.
         selectUserText = findViewById(R.id.select_user_text);
         trainListText = findViewById(R.id.train_list);
         uidText = findViewById(R.id.uid);
-        spinner = findViewById(R.id.select_seats);
         pwdText = findViewById(R.id.pwd);
+        seatTypeText = findViewById(R.id.select_seats_text);
         selectTime.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -280,6 +280,36 @@ public class AddTaskActivity extends AppCompatActivity implements MessageClient.
                 endStation.setText(fromText);
             }
         });
+        findViewById(R.id.select_seats_layout).setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                final List<String> selectSeatList = new ArrayList<>();
+                new AlertDialog.Builder(AddTaskActivity.this)
+                        .setTitle("请选择类型")
+                        .setMultiChoiceItems(seatArray,
+                                null, new DialogInterface.OnMultiChoiceClickListener() {
+                                    @Override
+                                    public void onClick(DialogInterface dialog, int which, boolean isChecked) {
+                                        if (isChecked) {
+                                            selectSeatList.add(seatArray[which]);
+                                        } else {
+                                            selectSeatList.remove(seatArray[which]);
+                                        }
+                                    }
+                                })
+                        .setPositiveButton("确定", new DialogInterface.OnClickListener() {
+                            @Override
+                            public void onClick(DialogInterface dialog, int which) {
+                                if (selectSeatList.isEmpty()) {
+                                    Toast.makeText(AddTaskActivity.this, "选择不能为空", Toast.LENGTH_SHORT).show();
+                                    return;
+                                }
+                                seatTypeText.setText(Utils.listToString(selectSeatList));
+                            }
+                        })
+                        .show();
+            }
+        });
         // 提交
         findViewById(R.id.btn_submit).setOnClickListener(new View.OnClickListener() {
             @Override
@@ -294,6 +324,7 @@ public class AddTaskActivity extends AppCompatActivity implements MessageClient.
                         || !checkNotNull(selectUserText, "用户信息不能为空")
                         || !checkNotNull(selectTimeText, "日期不能为空")
                         || !checkNotNull(trainListText, "车次不能为空")
+                        || !checkNotNull(seatTypeText, "坐席类型不能为空")
                 ) {
                     return;
                 }
@@ -336,8 +367,7 @@ public class AddTaskActivity extends AppCompatActivity implements MessageClient.
                 taskDao.setType(String.valueOf(SeatType.YW.getSign()));
                 taskDao.setUid(uidText.getText().toString());
                 taskDao.setPwd(pwdText.getText().toString());
-                String[] seatArray = getResources().getStringArray(R.array.seat_types);
-                taskDao.setType(SeatType.getSeatTypeByName(seatArray[spinner.getSelectedItemPosition()]));
+                taskDao.setType(seatTypeText.getText().toString());
                 SaveCallback callback = new SaveCallback() {
                     @Override
                     public void onFinish(final boolean success) {
@@ -394,6 +424,7 @@ public class AddTaskActivity extends AppCompatActivity implements MessageClient.
                         uidText.setText(taskDao.getUid());
                         pwdText.setText(taskDao.getPwd());
                         selectUserText.setText(Utils.listToString(userNameList));
+                        seatTypeText.setText(taskDao.getType());
                     }
                 }
             });
@@ -463,13 +494,6 @@ public class AddTaskActivity extends AppCompatActivity implements MessageClient.
                 }
             }
         });
-    }
-
-    private String doubleChar(int num) {
-        if (num < 10) {
-            return "0" + num;
-        }
-        return String.valueOf(num);
     }
 
     @Override

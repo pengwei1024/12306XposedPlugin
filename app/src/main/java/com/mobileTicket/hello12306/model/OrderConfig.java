@@ -15,7 +15,7 @@ public class OrderConfig {
     // 乘客
     public Passenger[] passenger;
     // 类型
-    public SeatType seatType = SeatType.YW;
+    public SeatType[] seatType = new SeatType[]{SeatType.YW};
     // 登录用户
     public String loginUser;
     public String loginPassword;
@@ -35,8 +35,8 @@ public class OrderConfig {
         return this;
     }
 
-    public OrderConfig setSeatType(SeatType seatType) {
-        this.seatType = seatType;
+    public OrderConfig setSeatType(SeatType[] seatTypes) {
+        this.seatType = seatTypes;
         return this;
     }
 
@@ -71,7 +71,7 @@ public class OrderConfig {
             .setStationInfo(Pair.create("BJP", "NCG"))
             .setTrains(Collections.<String>emptyList())
             .setPassenger(new Passenger[0])
-            .setSeatType(SeatType.YW)
+            .setSeatType(new SeatType[]{SeatType.YW})
             .setAutoLogin(true)
             .setLoginUser("")
             .setLoginPassword("");
@@ -79,9 +79,9 @@ public class OrderConfig {
     @NonNull
     public volatile static OrderConfig INSTANCE = DEFAULT;
 
-    public String seat_type_codes() {
+    public String seat_type_codes(@NonNull Trains trains) {
         return Utils.listToString(fill(INSTANCE.passenger.length,
-                String.valueOf(INSTANCE.seatType.getSign())), ",");
+                String.valueOf(trains.getValidSeatType().getSign())), ",");
     }
 
     public String ticket_types() {
@@ -132,8 +132,16 @@ public class OrderConfig {
     @Override
     public String toString() {
         return INSTANCE.stationInfo.first + "->" + INSTANCE.stationInfo.second + "; "
-                + passenger_names() + "; " + INSTANCE.seatType.getName() + "; "
+                + passenger_names() + "; " + seatListString() + "; "
                 + Utils.listToString(INSTANCE.trainDate)
                 + " autoLogin:" + autoLogin;
+    }
+
+    private String seatListString() {
+        List<String> seatList = new ArrayList<>();
+        for (SeatType type : INSTANCE.seatType) {
+            seatList.add(type.getName());
+        }
+        return Utils.listToString(seatList);
     }
 }

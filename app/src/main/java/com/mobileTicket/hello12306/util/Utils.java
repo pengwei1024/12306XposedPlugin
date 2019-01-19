@@ -1,6 +1,11 @@
 package com.mobileTicket.hello12306.util;
 
+import android.support.annotation.NonNull;
+import android.support.annotation.Nullable;
+
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 
@@ -56,6 +61,14 @@ public class Utils {
      */
     public static <T> String listToString(List<T> dataList) {
         return listToString(dataList, ";");
+    }
+
+    @NonNull
+    public static List<String> parseToList(@Nullable String value) {
+        if (value == null || value.length() == 0) {
+            return Collections.emptyList();
+        }
+        return Arrays.asList(value.split(";"));
     }
 
     public static <T> String listToString(List<T> dataList, String separator) {

@@ -24,7 +24,6 @@ import android.widget.TextView;
 import com.mobileTicket.hello12306.R;
 import com.mobileTicket.hello12306.dao.TaskDao;
 import com.mobileTicket.hello12306.model.EventCode;
-import com.mobileTicket.hello12306.model.SeatType;
 import com.mobileTicket.hello12306.util.MessageClient;
 import com.mobileTicket.hello12306.util.Utils;
 import com.tencent.mmkv.MMKV;
@@ -151,7 +150,7 @@ public class MainActivity extends AppCompatActivity implements MessageClient.Que
             String stringBuilder = "日期: " + Utils.listToString(taskDao.getTrainDate()) + "\n" +
                     "车次: " + Utils.listToString(taskDao.getTrainList()) + "\n" +
                     "乘客: " + Utils.listToString(taskDao.getPassengerList()) + "\n" +
-                    "类型: " + SeatType.parse(taskDao.getType()).getName();
+                    "类型: " + taskDao.getType();
             holder.ticket.setText(stringBuilder);
             holder.setSelected(taskDao.getId() == selectedId);
             holder.itemView.setOnLongClickListener(new MainOnLongClickListener(taskDao));

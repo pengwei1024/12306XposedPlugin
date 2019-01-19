@@ -132,18 +132,18 @@
         android:background="#ccc" />
 
     <com.mobileTicket.hello12306.widget.AddTaskLayout
+        android:id="@+id/select_seats_layout"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         app:title="坐席类型">
 
-        <Spinner
-            android:id="@+id/select_seats"
+        <EditText
+            android:id="@+id/select_seats_text"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:entries="@array/seat_types"
-            android:paddingTop="8dp"
-            android:paddingBottom="8dp"
-            />
+            android:hint="@string/suggest_multi_select"
+            android:text="硬卧"
+            android:textSize="12sp"/>
 
     </com.mobileTicket.hello12306.widget.AddTaskLayout>
 

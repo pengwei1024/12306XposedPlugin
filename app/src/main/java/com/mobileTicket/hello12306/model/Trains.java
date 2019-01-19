@@ -29,6 +29,7 @@ public class Trains {
     private HashMap<SeatType, Integer> ticketInfo = new HashMap<>();
     private String dfpStr;
     public JSONObject targetJson;
+    private SeatType validSeatType;
 
     @WorkerThread
     public static Trains loads(JSONObject item) {
@@ -116,7 +117,12 @@ public class Trains {
      */
     public boolean isMatch(OrderConfig config) {
         if (config.trains.contains(code)) {
-            return getTicketNum(config.seatType) >= config.passenger.length;
+            for (SeatType type : config.seatType) {
+                if (getTicketNum(type) >= config.passenger.length) {
+                    validSeatType = type;
+                    return true;
+                }
+            }
         }
         return false;
     }
@@ -131,5 +137,12 @@ public class Trains {
 
     public void setDfpStr(String dfpStr) {
         this.dfpStr = dfpStr;
+    }
+
+    public SeatType getValidSeatType() {
+        if (validSeatType == null) {
+            validSeatType = SeatType.YW;
+        }
+        return validSeatType;
     }
 }
