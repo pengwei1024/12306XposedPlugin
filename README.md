@@ -15,5 +15,8 @@
 - <font color="red">需要授予应用悬浮窗权限!!!</font>
 - <font color="red">国内ROM禁止了应用项目调起，可能得同时启动12306客户端和本应用</font>
 
-### 参考信息
+## 技术交流
+![](./screenshot/qq.png)
+
+## 参考信息
 - [车站信息](https://kyfw.12306.cn/otn/resources/js/framework/station_name.js?station_version=1.9027)
