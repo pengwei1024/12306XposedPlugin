@@ -12,8 +12,8 @@
 ![](./screenshot/s1.png)
 
 ## 注意事项
-- <font color="red">需要授予应用悬浮窗权限!!!</font>
-- <font color="red">国内ROM禁止了应用项目调起，可能得同时启动12306客户端和本应用</font>
+- <font color=red>需要授予应用悬浮窗权限!!!</font>
+- <font color=red>国内ROM禁止了应用项目调起，可能得同时启动12306客户端和本应用</font>
 
 ## 待解决问题
 - VirtualXposed 内运行12306客户端提交订单提示**702错误(SIGN\_VERIFY\_FAILED)**，所以暂时不支持免ROOT运行该插件
