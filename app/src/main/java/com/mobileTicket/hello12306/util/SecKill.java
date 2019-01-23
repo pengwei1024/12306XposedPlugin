@@ -94,7 +94,7 @@ public class SecKill {
                     // 500ms - 900ms 触发4次
                     int interval = (int) (currentTask.killTime - System.currentTimeMillis());
                     int millisecond = interval / 100;
-                    if (millisecond>= 1 && millisecond <= 4) {
+                    if (millisecond >= 1 && millisecond <= 4) {
                         currentTask.run();
                     }
                 }
@@ -102,6 +102,14 @@ public class SecKill {
             }
         }, 0, waitTime);
         Log.i(TAG, "Timer:" + waitTime);
+    }
+
+    /**
+     * 是否处于秒杀期间 (秒杀时间前后三分钟)
+     * @return bool
+     */
+    public boolean isSecKillPeriod() {
+        return currentTask != null && Math.abs(System.currentTimeMillis() - currentTask.killTime) < 1000 * 60 * 3;
     }
 
     @AnyThread

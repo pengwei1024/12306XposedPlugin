@@ -302,8 +302,8 @@ public class Hook12306Impl2 implements IXposedHookLoadPackage {
         getResponseMethod = H5Response.getMethod("getResponse");
         // String operationType, String requestData, String gateway, boolean compress, JSONObject joHeaders, String appKey, boolean retryable, H5Page h5Page, int timeout, String type, boolean isHttpGet, int signType
         XposedHelpers.findAndHookMethod(H5RpcUtil, "rpcCall",
-                    String.class, String.class, String.class, boolean.class, FastJSONObject, String.class,
-                    boolean.class, H5Page, int.class, String.class, boolean.class, int.class, new XC_MethodHook() {
+                String.class, String.class, String.class, boolean.class, FastJSONObject, String.class,
+                boolean.class, H5Page, int.class, String.class, boolean.class, int.class, new XC_MethodHook() {
                     @Override
                     protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
                         super.beforeHookedMethod(param);
@@ -423,6 +423,9 @@ public class Hook12306Impl2 implements IXposedHookLoadPackage {
                                     ticketSuccess(trains);
                                 } else if (result.getErrorMsg().contains("目前排队人数已经超过余票张数")) {
                                     QueryLeftTicketZ.addBlackList(trains.code);
+                                } else if (result.getErrorMsg().contains("余票不足,请重新查询车票信息")
+                                        && !SecKill.getInstance().isSecKillPeriod()) {
+                                    QueryLeftTicketZ.addBlackList(trains.code);
                                 }
                             }
                         } else {
@@ -439,8 +442,8 @@ public class Hook12306Impl2 implements IXposedHookLoadPackage {
     /**
      * 查询等待时间
      *
-     * @param trains 车次
-     * @param callback  返回内容回调
+     * @param trains   车次
+     * @param callback 返回内容回调
      */
     @WorkerThread
     private void queryWaitTime(final Trains trains, final ActionRunnable<String> callback) {
