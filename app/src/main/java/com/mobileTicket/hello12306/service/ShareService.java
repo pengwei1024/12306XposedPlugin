@@ -127,7 +127,7 @@ public class ShareService extends Service implements MessageClient.QueryListener
                                 if (taskDao == null) {
                                     response.call(Message.obtain(null, 0, -2, 0));
                                 } else {
-                                    boolean isAutoLogin = ticketKV.getBoolean(EventCode.KEY_AUTO_LOGIN, true);
+                                    boolean isAutoLogin = ticketKV.getBoolean(EventCode.KEY_AUTO_LOGIN, false);
                                     Message message = new Message();
                                     message.arg1 = 200;
                                     Bundle bundle = new Bundle();
@@ -186,7 +186,9 @@ public class ShareService extends Service implements MessageClient.QueryListener
         content.findViewById(R.id.btn_setting).setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                startActivity(new Intent(ShareService.this, MainActivity.class));
+                Intent it = new Intent(ShareService.this, MainActivity.class);
+                it.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                startActivity(it);
             }
         });
         // 主动计算出当前View的宽高信息.
