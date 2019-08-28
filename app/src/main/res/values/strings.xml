@@ -8,6 +8,9 @@
     <string name="title_activity_calendar">选择日期</string>
     <string name="menu_sure">确定</string>
     <string name="suggest_multi_select">推荐多选</string>
+    <string name="use_auto_login">启动自动登录</string>
+    <string name="input_12306_account">请输入12306帐号</string>
+    <string name="input_12306_pwd">请输入12306密码</string>
 
     <string-array name="seat_types">
         <item>硬卧</item>

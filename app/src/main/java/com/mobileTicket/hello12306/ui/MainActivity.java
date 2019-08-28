@@ -19,6 +19,8 @@ import android.view.MenuInflater;
 import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.CheckBox;
+import android.widget.CompoundButton;
 import android.widget.TextView;
 
 import com.mobileTicket.hello12306.R;
@@ -82,11 +84,23 @@ public class MainActivity extends AppCompatActivity implements MessageClient.Que
                 messageClient.sendToTarget(Message.obtain(null, EventCode.CODE_CLOSE_MUSIC), null);
                 break;
             case R.id.auto_login:
-                final boolean isAutoLogin = ticketKV.getBoolean(EventCode.KEY_AUTO_LOGIN, true);
+                final boolean isAutoLogin = ticketKV.getBoolean(EventCode.KEY_AUTO_LOGIN, false);
+                View content = LayoutInflater.from(this).inflate(R.layout.view_auto_login, null, false);
+                CheckBox checkBox = content.findViewById(R.id.auto_checkbox);
+                final View loginLayout = content.findViewById(R.id.login_layout);
+                TextView loginUid = content.findViewById(R.id.login_user);
+                TextView loginPwd = content.findViewById(R.id.login_pwd);
+                checkBox.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
+                    @Override
+                    public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
+                        loginLayout.setVisibility(isChecked ? View.VISIBLE : View.GONE);
+                    }
+                });
                 new AlertDialog.Builder(this)
-                        .setMessage("自动登录:" + isAutoLogin)
+                        .setTitle("自动登录配置")
+                        .setView(content)
                         .setNegativeButton("取消", null)
-                        .setPositiveButton(isAutoLogin ? "取消自动登录" : "自动登录", new DialogInterface.OnClickListener() {
+                        .setPositiveButton("确定", new DialogInterface.OnClickListener() {
                             @Override
                             public void onClick(DialogInterface dialog, int which) {
                                 ticketKV.putBoolean(EventCode.KEY_AUTO_LOGIN, !isAutoLogin);

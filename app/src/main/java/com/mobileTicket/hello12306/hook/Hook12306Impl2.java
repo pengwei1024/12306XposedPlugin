@@ -61,6 +61,7 @@ import java.util.Timer;
 import java.util.TimerTask;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -74,6 +75,7 @@ public class Hook12306Impl2 implements IXposedHookLoadPackage {
     private static final String TAG = "Hook12306";
     private ExecutorService executorService = Executors.newCachedThreadPool();
     private ExecutorService ticketService = Executors.newCachedThreadPool();
+    private Future timeTickFuture;
     private MessageClient messageClient;
     private Vibrator vibrator;
     private volatile String dfpValue = null;
@@ -166,6 +168,7 @@ public class Hook12306Impl2 implements IXposedHookLoadPackage {
                 timeFilter.addAction(Intent.ACTION_TIME_TICK);
                 messageClient.getActivity().registerReceiver(timeTickReceiver, timeFilter);
                 messageClient.getActivity().getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+                startLoop();
             }
         });
         XposedHelpers.findAndHookMethod(MainActivity, "onDestroy", new XC_MethodHook() {
@@ -181,31 +184,6 @@ public class Hook12306Impl2 implements IXposedHookLoadPackage {
                 }
             }
         });
-        // 定时器
-        final Timer timer = new Timer();
-        timer.schedule(new TimerTask() {
-            @Override
-            public void run() {
-                if (OrderConfig.INSTANCE.trains.isEmpty()) {
-                    sendUIMessage(EventCode.CODE_TICKET_CONFIG, OrderConfig.INSTANCE.toString());
-                    return;
-                }
-                int hour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY);
-                if (hour >= 23 || hour < 6) {
-                    return;
-                }
-                int sleepTime = new Random().nextInt(1200);
-                Log.d(TAG, "count=" + fetchCount.get() + ", sleep=" + sleepTime);
-                try {
-                    if (isStarted.get()) {
-                        Thread.sleep(sleepTime);
-                        queryLeftTicket();
-                    }
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
-            }
-        }, 5000, 2000);
         // 日志输出
         XposedBridge.log(TAG + " hook " + packageName);
         final Class<?> logClass = loadPackageParam.classLoader.loadClass("com.alipay.mobile.nebula.util.H5Log");
@@ -293,11 +271,11 @@ public class Hook12306Impl2 implements IXposedHookLoadPackage {
             }
         });
         // H5RpcUtil
-        final Class<?> H5RpcUtil = XposedHelpers.findClass("com.alipay.mobile.nebulabiz.rpc.H5RpcUtil",
+        final Class<?> H5RpcUtil = XposedHelpers.findClass("com.mpaas.nebula.rpc.H5RpcUtil",
                 loadPackageParam.classLoader);
         final Class<?> H5Page = XposedHelpers.findClass("com.alipay.mobile.h5container.api.H5Page",
                 loadPackageParam.classLoader);
-        final Class<?> H5Response = XposedHelpers.findClass("com.alipay.mobile.nebulabiz.rpc.H5Response",
+        final Class<?> H5Response = XposedHelpers.findClass("com.mpaas.nebula.rpc.H5Response",
                 loadPackageParam.classLoader);
         getResponseMethod = H5Response.getMethod("getResponse");
         // String operationType, String requestData, String gateway, boolean compress, JSONObject joHeaders, String appKey, boolean retryable, H5Page h5Page, int timeout, String type, boolean isHttpGet, int signType
@@ -335,6 +313,36 @@ public class Hook12306Impl2 implements IXposedHookLoadPackage {
         rpcCallMethod = H5RpcUtil.getMethod("rpcCall", String.class, String.class, String.class,
                 boolean.class, FastJSONObject, String.class,
                 boolean.class, H5Page, int.class, String.class, boolean.class, int.class);
+    }
+
+    /**
+     * 轮询机制
+     */
+    private synchronized void startLoop() {
+        if (timeTickFuture != null) {
+            timeTickFuture.cancel(true);
+        }
+        timeTickFuture = Executors.newSingleThreadExecutor().submit(new Runnable() {
+            @Override
+            public void run() {
+                while (true) {
+                    int hour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY);
+                    if (hour >= 23 || hour < 6) {
+                        return;
+                    }
+                    int sleepTime = 1000 + new Random().nextInt(1500);
+                    Log.d(TAG, "count=" + fetchCount.get() + ", sleep=" + sleepTime);
+                    try {
+                        Thread.sleep(sleepTime);
+                        if (isStarted.get()) {
+                            queryLeftTicket();
+                        }
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
+                }
+            }
+        });
     }
 
     /**
