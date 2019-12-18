@@ -25,7 +25,7 @@ public class QueryTicketString extends RpcRequest<String> {
     @NonNull
     @Override
     public String operationType() {
-        return "com.cars.otsmobile.queryLeftTicketZ";
+        return "com.cars.otsmobile.queryLeftTicketO";
     }
 
     @NonNull
@@ -33,18 +33,18 @@ public class QueryTicketString extends RpcRequest<String> {
     public JSONObject requestData() throws JSONException {
         JSONObject jsonArrayItem = new JSONObject();
         jsonArrayItem.put("train_date", trainDate);
+        jsonArrayItem.put("purpose_codes", "00");
         jsonArrayItem.put("from_station", from);
         jsonArrayItem.put("to_station", to);
         jsonArrayItem.put("station_train_code", "");
-        jsonArrayItem.put("train_headers", "QB#");
-        jsonArrayItem.put("train_flag", "");
         jsonArrayItem.put("start_time_begin", "0000");
         jsonArrayItem.put("start_time_end", "2400");
+        jsonArrayItem.put("train_headers", "QB#");
+        jsonArrayItem.put("train_flag", "");
         jsonArrayItem.put("seat_type", "0");
-        jsonArrayItem.put("ticket_num", "");
         jsonArrayItem.put("seatBack_Type", "");
+        jsonArrayItem.put("ticket_num", "");
         jsonArrayItem.put("dfpStr", "");
-        jsonArrayItem.put("purpose_codes", "00");
         return jsonArrayItem;
     }
 
