@@ -22,5 +22,7 @@
         <item>一等</item>
         <item>特等</item>
         <item>无座</item>
+        <item>一等卧</item>
+        <item>二等卧</item>
     </string-array>
 </resources>

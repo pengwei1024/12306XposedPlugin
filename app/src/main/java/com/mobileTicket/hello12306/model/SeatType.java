@@ -12,6 +12,8 @@ public enum SeatType {
     EDZ("二等", 'O'),
     YDZ("一等", 'M'),
     TDZ("特等", 'P'),
+    YDW("一等卧", 'I'),
+    EDW("二等卧", 'J'),
     WZ("无座", 'W');
 
     private String name;
