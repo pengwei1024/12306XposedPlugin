@@ -19,48 +19,26 @@ public class QueryLeftTicketZ extends RpcRequest<Trains> {
 
     private static final Map<String, Long> blackList = new ConcurrentHashMap<>();
 
-    @Nullable
-    private String trainDate;
-    @Nullable
-    private String from;
-    @Nullable
-    private String to;
+    private final QueryTicketProxy proxy;
     @Nullable
     private ActionRunnable<JSONArray> callback;
 
     public QueryLeftTicketZ(@Nullable String trainDate, @Nullable String from, @Nullable String to,
                             @Nullable ActionRunnable<JSONArray> callback) {
-        this.trainDate = trainDate;
-        this.from = from;
-        this.to = to;
+        proxy = new QueryTicketProxy(trainDate, from, to);
         this.callback = callback;
     }
 
     @NonNull
     @Override
     public String operationType() {
-        return "com.cars.otsmobile.queryLeftTicketO";
+        return proxy.operationType();
     }
 
     @NonNull
     @Override
     public JSONObject requestData() throws JSONException {
-        // 必须根据cacheDataKeys来排序，官方排序参考 com.MobileTicket.common.plugins.RpcWithBaseDTOPlugin#getSortedJSON
-        JSONObject jsonArrayItem = new JSONObject();
-        jsonArrayItem.put("train_date", trainDate);
-        jsonArrayItem.put("purpose_codes", "00");
-        jsonArrayItem.put("from_station", from);
-        jsonArrayItem.put("to_station", to);
-        jsonArrayItem.put("station_train_code", "");
-        jsonArrayItem.put("start_time_begin", "0000");
-        jsonArrayItem.put("start_time_end", "2400");
-        jsonArrayItem.put("train_headers", "QB#");
-        jsonArrayItem.put("train_flag", "");
-        jsonArrayItem.put("seat_type", "0");
-        jsonArrayItem.put("seatBack_Type", "");
-        jsonArrayItem.put("ticket_num", "");
-        jsonArrayItem.put("dfpStr", "");
-        return jsonArrayItem;
+        return proxy.requestData();
     }
 
     @Nullable
@@ -101,7 +79,7 @@ public class QueryLeftTicketZ extends RpcRequest<Trains> {
 
     @Override
     public boolean isHttpGet() {
-        return true;
+        return proxy.isHttpGet();
     }
 
     public static void addBlackList(@NonNull String code) {
