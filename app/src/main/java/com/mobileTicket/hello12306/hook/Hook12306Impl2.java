@@ -3,7 +3,6 @@ package com.mobileTicket.hello12306.hook;
 
 import android.annotation.SuppressLint;
 import android.app.Activity;
-import android.content.BroadcastReceiver;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
@@ -67,6 +66,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import de.robv.android.xposed.IXposedHookLoadPackage;
 import de.robv.android.xposed.XC_MethodHook;
+import de.robv.android.xposed.XC_MethodReplacement;
 import de.robv.android.xposed.XposedBridge;
 import de.robv.android.xposed.XposedHelpers;
 import de.robv.android.xposed.callbacks.XC_LoadPackage;
@@ -95,18 +95,12 @@ public class Hook12306Impl2 implements IXposedHookLoadPackage {
         if (!"com.MobileTicket".equals(packageName)) {
             return;
         }
-        // 整点提醒的广播
-        final BroadcastReceiver timeTickReceiver = new BroadcastReceiver() {
-            @Override
-            public void onReceive(Context context, Intent intent) {
-
-            }
-        };
         // 首页 MainActivity生命周期
         final Class<?> MainActivity = loadPackageParam.classLoader.loadClass("com.MobileTicket.ui.activity.MainActivity");
         XposedHelpers.findAndHookMethod(MainActivity, "onCreate", Bundle.class, new XC_MethodHook() {
             @Override
             protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
+                XposedBridge.log("Hook12306 hook MainActivity");
                 super.beforeHookedMethod(param);
                 PageManager.getInstance().push(new Page((Activity) param.thisObject));
                 Activity main = (Activity) param.thisObject;
@@ -166,7 +160,6 @@ public class Hook12306Impl2 implements IXposedHookLoadPackage {
                 messageClient.sendToTarget(Message.obtain(null, EventCode.CODE_QUERY_SELECT_TRANS), null);
                 IntentFilter timeFilter = new IntentFilter();
                 timeFilter.addAction(Intent.ACTION_TIME_TICK);
-                messageClient.getActivity().registerReceiver(timeTickReceiver, timeFilter);
                 messageClient.getActivity().getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
                 startLoop();
             }
@@ -178,13 +171,19 @@ public class Hook12306Impl2 implements IXposedHookLoadPackage {
                 LogUtil.print("MainActivity onDestroy");
                 PageManager.getInstance().pop(new Page((Activity) param.thisObject));
                 if (messageClient != null) {
-                    messageClient.getActivity().unregisterReceiver(timeTickReceiver);
                     messageClient.getActivity().getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
                     messageClient.onDestroy();
                 }
             }
         });
         // 日志输出
+        XposedHelpers.findAndHookMethod("com.alipay.mobile.common.logging.util.LoggingUtil", loadPackageParam.classLoader, "isDebuggable",
+                Context.class, new XC_MethodReplacement() {
+                    @Override
+                    protected Object replaceHookedMethod(XC_MethodHook.MethodHookParam methodHookParam) throws Throwable {
+                        return true;
+                    }
+                });
         XposedBridge.log(TAG + " hook " + packageName);
         final Class<?> logClass = loadPackageParam.classLoader.loadClass("com.alipay.mobile.nebula.util.H5Log");
         final String[] tags = {"d", "w", "e", "debug", "i"};
